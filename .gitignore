@@ -1,3 +1,9 @@
+# Exlude all files inside that are used for listings except for the directories needes to work
+file_listings/Destination_Listing/*.txt
+file_listings/Destination_Listing/*.csv
+file_listings/Source_Listing/*.txt
+file_listings/Source_Listing/*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
