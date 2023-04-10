@@ -8,11 +8,14 @@ import mysql.connector
 import os
 import glob
 import sys
-import queries
+from Modules import queries
 import shutil
 
-destination_dir_path = '/share/s3453g1/keysha/Development/AO_TACC_Data_Mapping/sql_listings/Destination_Listing/'
-source_dir_path = '/share/s3453g1/keysha/Development/AO_TACC_Data_Mapping/sql_listings/Source_Listing/'
+listings_path = 'file_listings/'
+
+destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
+source_dir_path = os.path.join(listings_path, 'Source_Listing/')
+
 
 # connect to existing mySQL database
 mydb = mysql.connector.connect(
