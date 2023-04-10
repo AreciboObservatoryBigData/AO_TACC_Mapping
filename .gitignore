@@ -4,6 +4,12 @@ file_listings/Destination_Listing/*.csv
 file_listings/Source_Listing/*.txt
 file_listings/Source_Listing/*.csv
 
+# same with finished directory files
+file_listings/Destination_Listing/finished/*.txt
+file_listings/Destination_Listing/finished/*.csv
+file_listings/Source_Listing/finished/*.txt
+file_listings/Source_Listing/finished/*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
