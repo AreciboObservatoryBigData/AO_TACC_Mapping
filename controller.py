@@ -108,7 +108,6 @@ def main():
 def setup():
     
     run_resets()
-    breakpoint()
 
     run_imports()
 
@@ -147,62 +146,49 @@ def run_imports():
         shutil.move(file, destination_dir_path)
     import_data(destination_dir_path, table_names["dst_files"])
 
-def get_option(options):
-    print("Please select an option:")
-    for i in range(len(options)):
-        print(str(i) + " - " + options[i])
-    option = input("Option: ")
-    option = int(option)
-    return option
+def insert_dirs():
+
+    # insert dirs into src_dirs table
+    mycursor = mydb.cursor()
+    query = queries.insert_type.format(src_table_name=table_names["src_files"], dst_table_name=table_names["src_dirs"], type="d")
+    mycursor.execute(query)
+    mydb.commit()
+
+    # delete dirs from src_files table
+    mycursor = mydb.cursor()
+    query = queries.delete_type.format(table_name=table_names["src_files"], type="d")
+    mycursor.execute(query)
+    mydb.commit()
+
+
         
+    # insert dirs into dst_dirs table
+    mycursor = mydb.cursor()
+    query = queries.insert_type.format(src_table_name=table_names["dst_files"], dst_table_name=table_names["dst_dirs"], type="d")
+    mycursor.execute(query)
+    mydb.commit()
+
+    # delete dirs from dst_files table
+    mycursor = mydb.cursor()
+    query = queries.delete_type.format(table_name=table_names["dst_files"], type="d")
+    mycursor.execute(query)
+    mydb.commit()
 
 def insert_src_links():
-    if import_src:
-        # insert links into src_links table
-        mycursor = mydb.cursor()
-        query = queries.insert_type.format(src_table_name=table_names["src_files"], dst_table_name=table_names["src_links"], type="l")
-        mycursor.execute(query)
-        mydb.commit()
-        
-        # delete links from src_files table
-        mycursor = mydb.cursor()
-        query = queries.delete_type.format(table_name=table_names["src_files"], type="l")
-        mycursor.execute(query)
-        mydb.commit()
-        
-        
-
-def insert_dirs():
-    if import_src:
-
-        # insert dirs into src_dirs table
-        mycursor = mydb.cursor()
-        query = queries.insert_type.format(src_table_name=table_names["src_files"], dst_table_name=table_names["src_dirs"], type="d")
-        mycursor.execute(query)
-        mydb.commit()
-
-        # delete dirs from src_files table
-        mycursor = mydb.cursor()
-        query = queries.delete_type.format(table_name=table_names["src_files"], type="d")
-        mycursor.execute(query)
-        mydb.commit()
-
-    if import_dst:
-            
-        # insert dirs into dst_dirs table
-        mycursor = mydb.cursor()
-        query = queries.insert_type.format(src_table_name=table_names["dst_files"], dst_table_name=table_names["dst_dirs"], type="d")
-        mycursor.execute(query)
-        mydb.commit()
+    # insert links into src_links table
+    mycursor = mydb.cursor()
+    query = queries.insert_type.format(src_table_name=table_names["src_files"], dst_table_name=table_names["src_links"], type="l")
+    mycursor.execute(query)
+    mydb.commit()
     
-        # delete dirs from dst_files table
-        mycursor = mydb.cursor()
-        query = queries.delete_type.format(table_name=table_names["dst_files"], type="d")
-        mycursor.execute(query)
-        mydb.commit()
+    # delete links from src_files table
+    mycursor = mydb.cursor()
+    query = queries.delete_type.format(table_name=table_names["src_files"], type="l")
+    mycursor.execute(query)
+    mydb.commit()
 
 def insert_file_dir():
-    if import_src:
+        
         print("Inserting file dir relations for src_files")
         # loop through results of query
         mycursor = mydb.cursor()
@@ -210,13 +196,14 @@ def insert_file_dir():
         mycursor.execute(query)
         myresult = mycursor.fetchall()
         for row in myresult:
+            breakpoint()
             # insert filepath in table
             filepath = row[0]
             mycursor = mydb.cursor()
             query = queries.insert_file_dir.format(src_table_name= table_names['src_files'],dst_table_name=table_names["src_file_dir"], filepath=filepath)
             mycursor.execute(query)
             mydb.commit()
-    if import_dst:
+
         print("Inserting file dir relations for dst_files")
         mycursor = mydb.cursor()
         query = queries.select_path_lists.format(table_name=table_names["dst_dirs"])
@@ -230,6 +217,23 @@ def insert_file_dir():
             mycursor.execute(query)
             mydb.commit()
     print("Finished inserting file dir relations")
+
+def get_option(options):
+    print("Please select an option:")
+    for i in range(len(options)):
+        print(str(i) + " - " + options[i])
+    option = input("Option: ")
+    option = int(option)
+    return option
+        
+
+
+        
+        
+
+
+
+
             
         
 
