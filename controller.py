@@ -28,10 +28,12 @@ allow_local_infile=True)
 print("Connected to database")
 
 
-reset_src = True
-reset_dst = True
-import_src = True
-import_dst = True
+#Setup vaiables
+################
+
+################
+
+
 
 table_names = {
     "src_files": "src_file_listing",
@@ -46,15 +48,26 @@ table_names = {
 
 
 def main():
-    run_resets()
 
-    run_imports()
+    run_dict = {
+        "options": [
+            "Run setup",
+            "Import new src files",
+            "Import new dst files",
+            "Delete src files from sql table",
+            "Delete dst files from sql table"
+        ],
+        "functions": [
+            setup,
+        ]
+            
+    }
+    
+    finished = False
+    while not finished:
+        option = get_option(run_dict["options"])
+        run_dict["functions"][option]()
 
-    insert_dirs()
-
-    insert_src_links()
-
-    insert_file_dir()
 
     
 
@@ -91,6 +104,57 @@ def main():
 # # close connection
 # mydb.close()
 # print("Finished")
+
+def setup():
+    
+    run_resets()
+    breakpoint()
+
+    run_imports()
+
+    insert_dirs()
+
+    insert_src_links()
+
+    insert_file_dir()
+
+def run_resets():
+    table_list = [
+        table_names["src_files"],
+        table_names["src_dirs"],
+        table_names["src_links"]
+
+    ]
+    reset_table(table_list)
+
+    table_list = [
+        table_names["dst_files"],
+        table_names["dst_dirs"]
+    ]
+    reset_table(table_list)
+
+
+def run_imports():
+    # Move all files in the finished folder to the root folder
+    files = glob.glob(os.path.join(source_dir_path, "finished", '*.txt'))
+    for file in files:
+        shutil.move(file, source_dir_path)
+    import_data(source_dir_path, table_names["src_files"])
+
+    # Move all files in the finished folder to the root folder
+    files = glob.glob(os.path.join(destination_dir_path, "finished", '*.txt'))
+    for file in files:
+        shutil.move(file, destination_dir_path)
+    import_data(destination_dir_path, table_names["dst_files"])
+
+def get_option(options):
+    print("Please select an option:")
+    for i in range(len(options)):
+        print(str(i) + " - " + options[i])
+    option = input("Option: ")
+    option = int(option)
+    return option
+        
 
 def insert_src_links():
     if import_src:
@@ -168,37 +232,9 @@ def insert_file_dir():
     print("Finished inserting file dir relations")
             
         
-def run_resets():
-    if reset_src:
-        table_list = [
-            table_names["src_files"],
-            table_names["src_dirs"],
-            table_names["src_links"]
 
-        ]
-        reset_table(table_list)
 
-    if reset_dst:
-        table_list = [
-            table_names["dst_files"],
-            table_names["dst_dirs"]
-        ]
-        reset_table(table_list)
 
-def run_imports():
-    if import_src:
-        # Move all files in the finished folder to the root folder
-        files = glob.glob(os.path.join(source_dir_path, "finished", '*.txt'))
-        for file in files:
-            shutil.move(file, source_dir_path)
-        import_data(source_dir_path, table_names["src_files"])
-
-    if import_dst:
-        # Move all files in the finished folder to the root folder
-        files = glob.glob(os.path.join(destination_dir_path, "finished", '*.txt'))
-        for file in files:
-            shutil.move(file, destination_dir_path)
-        import_data(destination_dir_path, table_names["dst_files"])
 
 
 def reset_table(table_names: list):
