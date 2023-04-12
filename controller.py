@@ -118,19 +118,10 @@ def setup():
     insert_file_dir()
 
 def run_resets():
-    table_list = [
-        table_names["src_files"],
-        table_names["src_dirs"],
-        table_names["src_links"]
+    table_list = [table_names[key] for key in table_names]
+    queries.delete_tables_data(mydb, table_list)
+    quit()
 
-    ]
-    reset_table(table_list)
-
-    table_list = [
-        table_names["dst_files"],
-        table_names["dst_dirs"]
-    ]
-    reset_table(table_list)
 
 
 def run_imports():
@@ -189,33 +180,34 @@ def insert_src_links():
 
 def insert_file_dir():
         
-        print("Inserting file dir relations for src_files")
-        # loop through results of query
+    print("Inserting file dir relations for src_files")
+    # loop through results of query
+    mycursor = mydb.cursor()
+    query = queries.select_path_lists.format(table_name=table_names["src_dirs"])
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    for row in myresult:
+        # insert filepath in table
+        filepath = row[0]
+        print(filepath)
         mycursor = mydb.cursor()
-        query = queries.select_path_lists.format(table_name=table_names["src_dirs"])
+        query = queries.insert_file_dir.format(src_table_name= table_names['src_files'],dst_table_name=table_names["src_file_dir"], filepath=filepath)
         mycursor.execute(query)
-        myresult = mycursor.fetchall()
-        for row in myresult:
-            breakpoint()
-            # insert filepath in table
-            filepath = row[0]
-            mycursor = mydb.cursor()
-            query = queries.insert_file_dir.format(src_table_name= table_names['src_files'],dst_table_name=table_names["src_file_dir"], filepath=filepath)
-            mycursor.execute(query)
-            mydb.commit()
+        mydb.commit()
 
-        print("Inserting file dir relations for dst_files")
+    print("Inserting file dir relations for dst_files")
+    mycursor = mydb.cursor()
+    query = queries.select_path_lists.format(table_name=table_names["dst_dirs"])
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    for row in myresult:
+        # insert filepath in table
+        filepath = row[0]
+        print(filepath)
         mycursor = mydb.cursor()
-        query = queries.select_path_lists.format(table_name=table_names["dst_dirs"])
+        query = queries.insert_file_dir.format(src_table_name= table_names['dst_files'],dst_table_name=table_names["dst_file_dir"], filepath=filepath)
         mycursor.execute(query)
-        myresult = mycursor.fetchall()
-        for row in myresult:
-            # insert filepath in table
-            filepath = row[0]
-            mycursor = mydb.cursor()
-            query = queries.insert_file_dir.format(src_table_name= table_names['dst_files'],dst_table_name=table_names["dst_file_dir"], filepath=filepath)
-            mycursor.execute(query)
-            mydb.commit()
+        mydb.commit()
     print("Finished inserting file dir relations")
 
 def get_option(options):
@@ -241,15 +233,7 @@ def get_option(options):
 
 
 
-def reset_table(table_names: list):
-    for table_name in table_names:
-        print(f"Deleting table {table_name}")
-        # Truncate tables
-        mycursor = mydb.cursor()
-        query = queries.delete_table_data.format(table_name=table_name)
-        mycursor.execute(query)
-        mydb.commit()
-        print(f"Deleted {table_name}")
+
 
 def import_data(dir_path, table_name):
     print(f"Importing {dir_path} files")
