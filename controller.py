@@ -60,6 +60,7 @@ def main():
         ],
         "functions": [
             setup,
+            insert_new_src_files,
         ]
             
     }
@@ -119,11 +120,15 @@ def setup():
 
     insert_file_dir()
 
+def insert_new_src_files():
+    print("Inserting new source files")
+    # get only files not in finished folder
+    files = glob.glob(os.path.join(source_dir_path, '*.tsv'))
+
+
 def run_resets():
     table_list = [table_names[key] for key in table_names]
     queries.delete_tables_data(mydb, table_list)
-
-
 
 def run_imports():
     # Move all files in the finished folder to the root folder
