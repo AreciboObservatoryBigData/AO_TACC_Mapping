@@ -10,6 +10,7 @@ import glob
 import sys
 from Modules import queries
 import shutil
+import time
 
 listings_path = 'file_listings/'
 
@@ -110,6 +111,7 @@ def setup():
     run_resets()
 
     run_imports()
+    
 
     insert_dirs()
 
@@ -120,7 +122,6 @@ def setup():
 def run_resets():
     table_list = [table_names[key] for key in table_names]
     queries.delete_tables_data(mydb, table_list)
-    quit()
 
 
 
@@ -129,15 +130,20 @@ def run_imports():
     files = glob.glob(os.path.join(source_dir_path, "finished", '*.txt'))
     for file in files:
         shutil.move(file, source_dir_path)
+    start_time = time.time()
     import_data(source_dir_path, table_names["src_files"])
-
+    print("Imported source files in {} seconds".format(time.time() - start_time))
     # Move all files in the finished folder to the root folder
     files = glob.glob(os.path.join(destination_dir_path, "finished", '*.txt'))
     for file in files:
         shutil.move(file, destination_dir_path)
+
+    start_time = time.time()    
     import_data(destination_dir_path, table_names["dst_files"])
+    print("Imported destination files in {} seconds".format(time.time() - start_time))
 
 def insert_dirs():
+    print("Inserting dirs into tables")
 
     # insert dirs into src_dirs table
     mycursor = mydb.cursor()
@@ -166,6 +172,7 @@ def insert_dirs():
     mydb.commit()
 
 def insert_src_links():
+    print("Inserting links into tables")
     # insert links into src_links table
     mycursor = mydb.cursor()
     query = queries.insert_type.format(src_table_name=table_names["src_files"], dst_table_name=table_names["src_links"], type="l")
@@ -188,10 +195,11 @@ def insert_file_dir():
     myresult = mycursor.fetchall()
     for row in myresult:
         # insert filepath in table
-        filepath = row[0]
+        dir_ID = row[0]
+        filepath = row[1]
         print(filepath)
         mycursor = mydb.cursor()
-        query = queries.insert_file_dir.format(src_table_name= table_names['src_files'],dst_table_name=table_names["src_file_dir"], filepath=filepath)
+        query = queries.insert_file_dir.format(src_table_name= table_names['src_files'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
         mycursor.execute(query)
         mydb.commit()
 
@@ -202,10 +210,11 @@ def insert_file_dir():
     myresult = mycursor.fetchall()
     for row in myresult:
         # insert filepath in table
-        filepath = row[0]
+        filepath = row[1]
+        dir_ID = row[0]
         print(filepath)
         mycursor = mydb.cursor()
-        query = queries.insert_file_dir.format(src_table_name= table_names['dst_files'],dst_table_name=table_names["dst_file_dir"], filepath=filepath)
+        query = queries.insert_file_dir.format(src_table_name= table_names['dst_files'],dst_table_name=table_names["dst_file_dir"], filepath=filepath, dir_ID=dir_ID)
         mycursor.execute(query)
         mydb.commit()
     print("Finished inserting file dir relations")
@@ -217,21 +226,6 @@ def get_option(options):
     option = input("Option: ")
     option = int(option)
     return option
-        
-
-
-        
-        
-
-
-
-
-            
-        
-
-
-
-
 
 
 
@@ -244,7 +238,7 @@ def import_data(dir_path, table_name):
         print(f"Importing file: {file}")
         # Execute SQL statement
         mycursor = mydb.cursor()
-        query = queries.import_data.format(file=file, table_name=table_name)
+        query = queries.import_data(mydb, file, table_name)
 
         mycursor.execute(query)
         mydb.commit()

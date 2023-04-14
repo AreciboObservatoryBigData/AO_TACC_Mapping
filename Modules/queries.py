@@ -45,14 +45,24 @@ FROM
 
 
 
-def import_data(file, table_name):
-    load_query = "LOAD DATA LOCAL INFILE '{file}'INTO TABLE Skittles_DB.{table_name} FIELDS TERMINATED BY '\\t'IGNORE 1 ROWS;"
+def import_data(mydb, file, table_name):
+    load_query = f'''LOAD DATA LOCAL INFILE '{file}' INTO TABLE Skittles_DB.{table_name} 
+                    FIELDS TERMINATED BY '\\t'
+                    IGNORE 1 ROWS
+                    (filename, filepath, filetype, filesize,fileAtime,fileMtime,fileCtime);
+                    '''
+
+    # execute query
+    mycursor = mydb.cursor()
+    query = load_query
+    mycursor.execute(query)
+    mydb.commit()
 
 
 insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where filetype = '{type}';"
 
 delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
 
-select_path_lists = "SELECT filepath FROM {table_name};"
+select_path_lists = "SELECT ID, filepath FROM {table_name};"
 
-insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} SELECT filepath, '{filepath}' as 'dir_filepath' FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%'"
+insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} SELECT ID, '{dir_ID}' as 'dir_ID' FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%'"
