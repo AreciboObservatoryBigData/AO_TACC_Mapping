@@ -52,20 +52,18 @@ def main():
 
     run_dict = {
         "options": [
+            "Quit",
             "Run setup",
-            "Import new src files",
-            "Import new dst files",
-            "Delete src files from sql table",
-            "Delete dst files from sql table",
-            "quit"
+            "Import new files",
+            "Delete file contents from sql table",
+            
         ],
         "functions": [
+            quit,
             setup,
-            insert_new_src_files,
-            None,
-            None,
-            None,
-            quit
+            insert_new_files,
+
+            
         ]
             
     }
@@ -125,13 +123,26 @@ def setup():
 
     insert_file_dir()
 
-def insert_new_src_files():
-    print("Inserting new source files")
-    # get only files not in finished folder
+    # move files to finished folder
     files = glob.glob(os.path.join(source_dir_path, '*.tsv'))
     for file in files:
-        import_data(file, table_names["src_files"])
-        
+        shutil.move(file, os.path.join(source_dir_path, "finished"))
+
+    files = glob.glob(os.path.join(destination_dir_path, '*.tsv'))
+    for file in files:
+        shutil.move(file, os.path.join(destination_dir_path, "finished"))
+
+
+def insert_new_files():
+    print("Inserting new source files")
+    # get only files not in finished folder
+    pattern = '.tsv'
+    files = [os.path.join(source_dir_path,filename) for filename in os.listdir(source_dir_path) if filename.endswith(pattern)]
+
+    import_data(source_dir_path, table_names["src_files"])
+
+    import_data(destination_dir_path, table_names["dst_files"])
+    
     insert_dirs()
     insert_src_links()
     insert_file_dir()
@@ -213,7 +224,6 @@ def insert_file_dir():
     # loop through results of query
     mycursor = mydb.cursor()
     query = queries.select_dir_names_no_relations.format(dir_table_name=table_names["src_dirs"], file_dir_table_name=table_names["src_file_dir"])
-    breakpoint()
     mycursor.execute(query)
     myresult = mycursor.fetchall()
     for row in myresult:
@@ -254,17 +264,14 @@ def get_option(options):
 
 def import_data(dir_path, table_name):
     print(f"Importing {dir_path} files")
-    files = glob.glob(os.path.join(dir_path, '*.tsv'))
-
-    finished_dir_path = os.path.join(dir_path, "finished")
+     # get only files not in finished folder
+    pattern = '.tsv'
+    files = [os.path.join(dir_path,filename) for filename in os.listdir(dir_path) if filename.endswith(pattern)]
     for file in files:
         print(f"Importing file: {file}")
-        # Execute SQL statement
-        mycursor = mydb.cursor()
-        query = queries.import_data(mydb, file, table_name)
+        queries.import_data(mydb, file, table_name)
+        
 
-        mycursor.execute(query)
-        mydb.commit()
 
         
         
