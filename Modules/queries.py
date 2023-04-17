@@ -63,6 +63,6 @@ insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where
 
 delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
 
-select_path_lists = "SELECT ID, filepath FROM {table_name};"
+select_dir_names_no_relations = "SELECT ID, filepath FROM {dir_table_name} WHERE ID NOT IN(SELECT DISTINCT {dir_table_name}_ID FROM Skittles_DB.{file_dir_table_name});"
 
-insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} SELECT ID, '{dir_ID}' as 'dir_ID' FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%'"
+insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} SELECT ID, '{dir_ID}' as 'dir_ID' FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%';"

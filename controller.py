@@ -56,11 +56,16 @@ def main():
             "Import new src files",
             "Import new dst files",
             "Delete src files from sql table",
-            "Delete dst files from sql table"
+            "Delete dst files from sql table",
+            "quit"
         ],
         "functions": [
             setup,
             insert_new_src_files,
+            None,
+            None,
+            None,
+            quit
         ]
             
     }
@@ -124,6 +129,17 @@ def insert_new_src_files():
     print("Inserting new source files")
     # get only files not in finished folder
     files = glob.glob(os.path.join(source_dir_path, '*.tsv'))
+    for file in files:
+        import_data(file, table_names["src_files"])
+        
+    insert_dirs()
+    insert_src_links()
+    insert_file_dir()
+
+    # move files to finished folder
+    for file in files:
+        # move file to finished folder
+        shutil.move(file, os.path.join(source_dir_path, "finished"))
 
 
 def run_resets():
@@ -131,15 +147,16 @@ def run_resets():
     queries.delete_tables_data(mydb, table_list)
 
 def run_imports():
+    finished_files = []
     # Move all files in the finished folder to the root folder
-    files = glob.glob(os.path.join(source_dir_path, "finished", '*.txt'))
+    files = glob.glob(os.path.join(source_dir_path, "finished", '*.tsv'))
     for file in files:
         shutil.move(file, source_dir_path)
     start_time = time.time()
     import_data(source_dir_path, table_names["src_files"])
     print("Imported source files in {} seconds".format(time.time() - start_time))
     # Move all files in the finished folder to the root folder
-    files = glob.glob(os.path.join(destination_dir_path, "finished", '*.txt'))
+    files = glob.glob(os.path.join(destination_dir_path, "finished", '*.tsv'))
     for file in files:
         shutil.move(file, destination_dir_path)
 
@@ -195,7 +212,8 @@ def insert_file_dir():
     print("Inserting file dir relations for src_files")
     # loop through results of query
     mycursor = mydb.cursor()
-    query = queries.select_path_lists.format(table_name=table_names["src_dirs"])
+    query = queries.select_dir_names_no_relations.format(dir_table_name=table_names["src_dirs"], file_dir_table_name=table_names["src_file_dir"])
+    breakpoint()
     mycursor.execute(query)
     myresult = mycursor.fetchall()
     for row in myresult:
@@ -210,7 +228,7 @@ def insert_file_dir():
 
     print("Inserting file dir relations for dst_files")
     mycursor = mydb.cursor()
-    query = queries.select_path_lists.format(table_name=table_names["dst_dirs"])
+    query = queries.select_dir_names_no_relations.format(dir_table_name=table_names["dst_dirs"], file_dir_table_name=table_names["dst_file_dir"])
     mycursor.execute(query)
     myresult = mycursor.fetchall()
     for row in myresult:
@@ -236,7 +254,7 @@ def get_option(options):
 
 def import_data(dir_path, table_name):
     print(f"Importing {dir_path} files")
-    files = glob.glob(os.path.join(dir_path, '*.txt'))
+    files = glob.glob(os.path.join(dir_path, '*.tsv'))
 
     finished_dir_path = os.path.join(dir_path, "finished")
     for file in files:
@@ -249,8 +267,7 @@ def import_data(dir_path, table_name):
         mydb.commit()
 
         
-        # move to the finished directory
-        shutil.move(file, os.path.join(finished_dir_path, os.path.basename(file)))
+        
 
         
 
