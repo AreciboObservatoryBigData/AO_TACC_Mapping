@@ -9,6 +9,7 @@ import os
 import glob
 import sys
 from Modules import queries
+from Modules import menus
 import shutil
 import time
 
@@ -62,6 +63,7 @@ def main():
             quit,
             setup,
             insert_new_files,
+            delete_file_sql_contents
 
             
         ]
@@ -70,7 +72,8 @@ def main():
     
     finished = False
     while not finished:
-        option = get_option(run_dict["options"])
+        print("-----------Main Menu-----------")
+        option = menus.get_option_main(run_dict["options"])
         run_dict["functions"][option]()
 
 
@@ -152,6 +155,47 @@ def insert_new_files():
         # move file to finished folder
         shutil.move(file, os.path.join(source_dir_path, "finished"))
 
+def delete_file_sql_contents():
+    
+    # Make user type the name oif the file to delete, if not correct, ask again
+    options = [
+        "Return to main menu",
+        "Source_Listing",
+        "Destination_Listing"
+    ]
+    print("-----------DELETE FILE FROM SQL-----------")
+    option = menus.get_option_main(options)
+
+    if option == 0:
+        return
+    
+    file_name = input("Enter the name of the file to delete: ")
+
+    if option == 1:
+        check_dir = source_dir_path
+    else:
+        check_dir = destination_dir_path
+    
+    # get finished files
+    finished_dir = os.path.join(check_dir, "finished")
+    files = glob.glob(os.path.join(finished_dir, '*.tsv'))
+
+    # check which file to delete
+    try:
+        index = files.index(os.path.join(finished_dir,file_name))
+    except ValueError:
+        print("File not found")
+        return
+
+    chosen_file = files[index]
+    # delete file from sql table
+    
+
+
+    # Delete selected file from sql table
+    # Re-print until user selects return to main menu
+    # Get finished files from finished folder
+    
 
 def run_resets():
     table_list = [table_names[key] for key in table_names]
@@ -252,13 +296,7 @@ def insert_file_dir():
         mydb.commit()
     print("Finished inserting file dir relations")
 
-def get_option(options):
-    print("Please select an option:")
-    for i in range(len(options)):
-        print(str(i) + " - " + options[i])
-    option = input("Option: ")
-    option = int(option)
-    return option
+
 
 
 
