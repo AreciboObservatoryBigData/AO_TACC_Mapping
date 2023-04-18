@@ -45,7 +45,9 @@ table_names = {
 
     "dst_files": "dst_file_listing",
     "dst_file_dir": "dst_file_dir_relations",
-    "dst_dirs": "dst_dirs"
+    "dst_dirs": "dst_dirs",
+
+    "listing_paths": "listing_paths"
 }
 
 
@@ -173,8 +175,12 @@ def delete_file_sql_contents():
 
     if option == 1:
         check_dir = source_dir_path
+        table_name = table_names["src_files"]
+        dir_table_name = table_names["src_dirs"]
     else:
         check_dir = destination_dir_path
+        table_name = table_names["dst_files"]
+        dir_table_name = table_names["dst_dirs"]
     
     # get finished files
     finished_dir = os.path.join(check_dir, "finished")
@@ -187,14 +193,26 @@ def delete_file_sql_contents():
         print("File not found")
         return
 
-    chosen_file = files[index]
+    chosen_file = files[index]  
+
+    file_mv_path = chosen_file.split("/")
+    file_mv_path.pop(-2)
+    file_mv_path = "/".join(file_mv_path)
+
+    file_path_ID = queries.get_ID_by_filepath(mydb, file_mv_path, table_names["listing_paths"])
     # delete file from sql table
+    queries.delete_by_ID(mydb, file_path_ID, table_name, "listing_paths_ID")
+    # delete dir file data from sql table
+    queries.delete_by_ID(mydb, file_path_ID, dir_table_name, "listing_paths_ID")
+    # delete from listing paths
+    queries.delete_by_ID(mydb, file_path_ID, table_names["listing_paths"], "ID")
+
+    # move file back to root folder
+    shutil.move(chosen_file, check_dir)
+
+    print(f"File {chosen_file} deleted from sql table")
 
 
-
-    # Delete selected file from sql table
-    # Re-print until user selects return to main menu
-    # Get finished files from finished folder
     
 
 def run_resets():

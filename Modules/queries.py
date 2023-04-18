@@ -122,3 +122,22 @@ delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
 select_dir_names_no_relations = "SELECT ID, filepath FROM {dir_table_name} WHERE ID NOT IN(SELECT DISTINCT {dir_table_name}_ID FROM Skittles_DB.{file_dir_table_name});"
 
 insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} SELECT ID, '{dir_ID}' as 'dir_ID' FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%';"
+
+def get_ID_by_filepath(mydb, filepath, table_name):
+    # Get the ID of the file just inserted
+    query = f"SELECT ID FROM Skittles_DB.{table_name} WHERE filepath = '{filepath}';"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    file_ID = myresult[0][0]
+    return file_ID
+def delete_by_ID(mydb, ID, table_name, column_name):
+    # Delete all rows in the table_name where the listing_paths_ID is the file_ID
+    query = f"DELETE FROM Skittles_DB.{table_name} WHERE {column_name} = {ID};"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    mydb.commit()
+
+
+
+
