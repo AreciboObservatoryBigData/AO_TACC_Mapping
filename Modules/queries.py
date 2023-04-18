@@ -108,7 +108,7 @@ def import_data(mydb, file, table_name):
     mydb.commit()
 
     # set all keys back to not null
-    for row in myresult:
+    for row in fk_results:
         query = f"ALTER TABLE {table_name} MODIFY {row[2]} INT NOT NULL;"
         mycursor = mydb.cursor()
         mycursor.execute(query)
