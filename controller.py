@@ -189,7 +189,7 @@ def delete_file_sql_contents():
 
     chosen_file = files[index]
     # delete file from sql table
-    
+
 
 
     # Delete selected file from sql table

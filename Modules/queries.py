@@ -1,4 +1,3 @@
-import os
 def delete_tables_data(mydb, tables_list):
     # get all foreign keys
     query = '''SELECT
@@ -47,35 +46,6 @@ FROM
 
 
 def import_data(mydb, file, table_name):
-    
-    # first take the table_name and get all foreign keys
-    query = f'''SELECT
-    constraint_name,
-    table_name,
-    column_name,
-    referenced_table_name,
-    referenced_column_name
-    FROM
-    information_schema.key_column_usage where TABLE_NAME = '{table_name}' and CONSTRAINT_NAME LIKE '%fk%';'''
-
-    mycursor = mydb.cursor()
-
-    mycursor.execute(query)
-    fk_results = mycursor.fetchall()
-
-    # set all keys to the possibility of null
-
-    for row in fk_results:
-        query = f"ALTER TABLE {table_name} MODIFY {row[2]} INT NULL;"
-        mycursor = mydb.cursor()
-        mycursor.execute(query)
-        
-
-
-        
-
-
-
     load_query = f'''LOAD DATA LOCAL INFILE '{file}' INTO TABLE Skittles_DB.{table_name} 
                     FIELDS TERMINATED BY '\\t'
                     IGNORE 1 ROWS
@@ -87,32 +57,6 @@ def import_data(mydb, file, table_name):
     query = load_query
     mycursor.execute(query)
     mydb.commit()
-
-    # Insert the file into listing_paths table
-    query = f"INSERT INTO Skittles_DB.listing_paths (filename, filepath) VALUES ('{os.path.basename(file)}','{file}');"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    mydb.commit()
-
-    # Get the ID of the file just inserted
-    query = f"SELECT ID FROM Skittles_DB.listing_paths WHERE filename = '{os.path.basename(file)}' AND filepath = '{file}';"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    myresult = mycursor.fetchall()
-    file_ID = myresult[0][0]
-
-    # Get all the values in the table where the foreign key column is null and set it to the value of the file_ID
-    query = f"UPDATE Skittles_DB.{table_name} SET {fk_results[0][2]} = {file_ID} WHERE {fk_results[0][2]} IS NULL;"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    mydb.commit()
-
-    # set all keys back to not null
-    for row in myresult:
-        query = f"ALTER TABLE {table_name} MODIFY {row[2]} INT NOT NULL;"
-        mycursor = mydb.cursor()
-        mycursor.execute(query)
-
 
 
 insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where filetype = '{type}';"
