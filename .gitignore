@@ -18,6 +18,16 @@ file_listings/Source_Listing/finished/*
 !file_listings/Destination_Listing/finished/README.md
 !file_listings/Source_Listing/finished/README.md
 
+# Exlude all dir_listing files except readme and listing program and output
+dir_listing/*
+!dir_listing/README.md
+!dir_listing/listing.sh
+!dir_listing/Output
+
+# Exclude all files in output except readme
+dir_listing/Output/*
+!dir_listing/Output/README.md
+
 
 
 
