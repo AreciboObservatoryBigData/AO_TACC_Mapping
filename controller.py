@@ -237,7 +237,7 @@ def insert_file_dir():
     # loop through results of query
     mycursor = mydb.cursor()
     query = queries.select_dir_names_no_relations.format(table_name=table_names["src_listing"], file_dir_table_name=table_names["src_file_dir"])
-    breakpoint()
+    
     mycursor.execute(query)
     myresult = mycursor.fetchall()
     for row in myresult:
@@ -246,13 +246,12 @@ def insert_file_dir():
         filepath = row[1]
         print(filepath)
         mycursor = mydb.cursor()
-        query = queries.insert_file_dir.format(src_table_name= table_names['src_files'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
+        query = queries.insert_file_dir.format(src_table_name= table_names['src_listing'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
         mycursor.execute(query)
         mydb.commit()
-
     print("Inserting file dir relations for dst_files")
     mycursor = mydb.cursor()
-    query = queries.select_dir_names_no_relations.format(dir_table_name=table_names["dst_dirs"], file_dir_table_name=table_names["dst_file_dir"])
+    query = queries.select_dir_names_no_relations.format(table_name=table_names["dst_listing"], file_dir_table_name=table_names["dst_file_dir"])
     mycursor.execute(query)
     myresult = mycursor.fetchall()
     for row in myresult:
