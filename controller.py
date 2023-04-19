@@ -38,14 +38,12 @@ print("Connected to database")
 
 
 table_names = {
-    "src_files": "src_file_listing",
-    "src_dirs": "src_dirs",
-    "src_links": "src_broken_links",
+    "src_listing": "src_listing",
     "src_file_dir": "src_file_dir_relations",
 
-    "dst_files": "dst_file_listing",
+    "dst_files": "dst_listing",
     "dst_file_dir": "dst_file_dir_relations",
-    "dst_dirs": "dst_dirs",
+
 
     "listing_paths": "listing_paths"
 }
@@ -122,9 +120,6 @@ def setup():
     run_imports()
     
 
-    insert_dirs()
-
-    insert_src_links()
 
     insert_file_dir()
 
@@ -148,8 +143,6 @@ def insert_new_files():
 
     import_data(destination_dir_path, table_names["dst_files"])
     
-    insert_dirs()
-    insert_src_links()
     insert_file_dir()
 
     # move files to finished folder
@@ -220,13 +213,12 @@ def run_resets():
     queries.delete_tables_data(mydb, table_list)
 
 def run_imports():
-    finished_files = []
     # Move all files in the finished folder to the root folder
     files = glob.glob(os.path.join(source_dir_path, "finished", '*.tsv'))
     for file in files:
         shutil.move(file, source_dir_path)
     start_time = time.time()
-    import_data(source_dir_path, table_names["src_files"])
+    import_data(source_dir_path, table_names["src_listing"])
     print("Imported source files in {} seconds".format(time.time() - start_time))
     # Move all files in the finished folder to the root folder
     files = glob.glob(os.path.join(destination_dir_path, "finished", '*.tsv'))
@@ -237,55 +229,15 @@ def run_imports():
     import_data(destination_dir_path, table_names["dst_files"])
     print("Imported destination files in {} seconds".format(time.time() - start_time))
 
-def insert_dirs():
-    print("Inserting dirs into tables")
 
-    # insert dirs into src_dirs table
-    mycursor = mydb.cursor()
-    query = queries.insert_type.format(src_table_name=table_names["src_files"], dst_table_name=table_names["src_dirs"], type="d")
-    mycursor.execute(query)
-    mydb.commit()
-
-    # delete dirs from src_files table
-    mycursor = mydb.cursor()
-    query = queries.delete_type.format(table_name=table_names["src_files"], type="d")
-    mycursor.execute(query)
-    mydb.commit()
-
-
-        
-    # insert dirs into dst_dirs table
-    mycursor = mydb.cursor()
-    query = queries.insert_type.format(src_table_name=table_names["dst_files"], dst_table_name=table_names["dst_dirs"], type="d")
-    mycursor.execute(query)
-    mydb.commit()
-
-    # delete dirs from dst_files table
-    mycursor = mydb.cursor()
-    query = queries.delete_type.format(table_name=table_names["dst_files"], type="d")
-    mycursor.execute(query)
-    mydb.commit()
-
-def insert_src_links():
-    print("Inserting links into tables")
-    # insert links into src_links table
-    mycursor = mydb.cursor()
-    query = queries.insert_type.format(src_table_name=table_names["src_files"], dst_table_name=table_names["src_links"], type="l")
-    mycursor.execute(query)
-    mydb.commit()
-    
-    # delete links from src_files table
-    mycursor = mydb.cursor()
-    query = queries.delete_type.format(table_name=table_names["src_files"], type="l")
-    mycursor.execute(query)
-    mydb.commit()
 
 def insert_file_dir():
         
     print("Inserting file dir relations for src_files")
     # loop through results of query
     mycursor = mydb.cursor()
-    query = queries.select_dir_names_no_relations.format(dir_table_name=table_names["src_dirs"], file_dir_table_name=table_names["src_file_dir"])
+    query = queries.select_dir_names_no_relations.format(table_name=table_names["src_listing"], file_dir_table_name=table_names["src_file_dir"])
+    breakpoint()
     mycursor.execute(query)
     myresult = mycursor.fetchall()
     for row in myresult:
@@ -319,20 +271,17 @@ def insert_file_dir():
 
 
 def import_data(dir_path, table_name):
-    print(f"Importing {dir_path} files")
-     # get only files not in finished folder
     pattern = '.tsv'
     files = [os.path.join(dir_path,filename) for filename in os.listdir(dir_path) if filename.endswith(pattern)]
+
+    if len(files) == 0:
+        print(f"No files found in {dir_path}")
+        return
+    print(f"Importing {dir_path} files")
+     # get only files not in finished folder
+    
     for file in files:
         print(f"Importing file: {file}")
-        queries.import_data(mydb, file, table_name)
-        
-
-
-        
-        
-
-        
-
+        queries.import_data(mydb, file, table_name, table_names["listing_paths"])  
 
 main()

@@ -46,7 +46,7 @@ FROM
 
 
 
-def import_data(mydb, file, table_name):
+def import_data(mydb, file, table_name, listing_paths_table_name):
     
     # first take the table_name and get all foreign keys
     query = f'''SELECT
@@ -63,10 +63,29 @@ def import_data(mydb, file, table_name):
     mycursor.execute(query)
     fk_results = mycursor.fetchall()
 
-    # set all keys to the possibility of null
+    # Get all the table info before making changes
+    query = f"DESCRIBE {table_name};"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    table_info = mycursor.fetchall()
 
+    # set all keys to the possibility of null
+    fk_info = []
     for row in fk_results:
-        query = f"ALTER TABLE {table_name} MODIFY {row[2]} INT NULL;"
+        column_name = row[2]
+        # get the type of the column
+        fk_type = [x[1] for x in table_info if x[0] == column_name][0]
+        # convert to string
+        fk_type = fk_type.decode('utf-8')
+        # capitalize
+        fk_type = fk_type.upper()
+        null = [x[2] for x in table_info if x[0] == column_name][0]
+        if null == 'NO':
+            null = 'NOT NULL'
+        else:
+            null = 'NULL'
+        fk_info.append([column_name, fk_type, null])
+        query = f"ALTER TABLE {table_name} MODIFY {column_name} {fk_type} NULL;"
         mycursor = mydb.cursor()
         mycursor.execute(query)
         
@@ -79,7 +98,7 @@ def import_data(mydb, file, table_name):
     load_query = f'''LOAD DATA LOCAL INFILE '{file}' INTO TABLE Skittles_DB.{table_name} 
                     FIELDS TERMINATED BY '\\t'
                     IGNORE 1 ROWS
-                    (filename, filepath, filetype, filesize,fileAtime,fileMtime,fileCtime);
+                    (filename, filepath, filetype, filesize,fileAtime,fileMtime,fileCtime,points_to);
                     '''
 
     # execute query
@@ -87,6 +106,8 @@ def import_data(mydb, file, table_name):
     query = load_query
     mycursor.execute(query)
     mydb.commit()
+
+    
 
     # Insert the file into listing_paths table
     query = f"INSERT INTO Skittles_DB.listing_paths (filename, filepath) VALUES ('{os.path.basename(file)}','{file}');"
@@ -101,25 +122,34 @@ def import_data(mydb, file, table_name):
     myresult = mycursor.fetchall()
     file_ID = myresult[0][0]
 
+    # get index of foreign key that references listing_paths
+    i = 0
+    for row in fk_results:
+        if row[3] == 'listing_paths':
+            break
+        i += 1
+    fk_listing_tuple = fk_results[i]
+    
+
     # Get all the values in the table where the foreign key column is null and set it to the value of the file_ID
-    query = f"UPDATE Skittles_DB.{table_name} SET {fk_results[0][2]} = {file_ID} WHERE {fk_results[0][2]} IS NULL;"
+    query = f"UPDATE Skittles_DB.{table_name} SET {fk_listing_tuple[2]} = {file_ID} WHERE {fk_listing_tuple[2]} IS NULL;"
     mycursor = mydb.cursor()
     mycursor.execute(query)
     mydb.commit()
 
-    # set all keys back to not null
-    for row in fk_results:
-        query = f"ALTER TABLE {table_name} MODIFY {row[2]} INT NOT NULL;"
+    # set all keys back to their original values
+    for row in fk_info:
+        query = f"ALTER TABLE {table_name} MODIFY {row[0]} {row[1]} {row[2]};"
         mycursor = mydb.cursor()
         mycursor.execute(query)
 
-
+   
 
 insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where filetype = '{type}';"
 
 delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
 
-select_dir_names_no_relations = "SELECT ID, filepath FROM {dir_table_name} WHERE ID NOT IN(SELECT DISTINCT {dir_table_name}_ID FROM Skittles_DB.{file_dir_table_name});"
+select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT {table_name}_ID FROM Skittles_DB.{relations_table_name});"
 
 insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} SELECT ID, '{dir_ID}' as 'dir_ID' FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%';"
 
@@ -138,6 +168,17 @@ def delete_by_ID(mydb, ID, table_name, column_name):
     mycursor.execute(query)
     mydb.commit()
 
+def get_all_data(mydb, table_name):
+    query = f"SELECT * FROM {table_name};"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    return myresult
 
-
+def get_data_by_column_value(mydb, name, table_name,  column_name):
+    query = f"SELECT * FROM {table_name} WHERE {column_name} = '{name}';"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    return myresult
 
