@@ -41,7 +41,7 @@ table_names = {
     "src_listing": "src_listing",
     "src_file_dir": "src_file_dir_relations",
 
-    "dst_files": "dst_listing",
+    "dst_listing": "dst_listing",
     "dst_file_dir": "dst_file_dir_relations",
 
 
@@ -226,7 +226,7 @@ def run_imports():
         shutil.move(file, destination_dir_path)
 
     start_time = time.time()    
-    import_data(destination_dir_path, table_names["dst_files"])
+    import_data(destination_dir_path, table_names["dst_listing"])
     print("Imported destination files in {} seconds".format(time.time() - start_time))
 
 
@@ -254,6 +254,7 @@ def insert_file_dir():
     query = queries.select_dir_names_no_relations.format(table_name=table_names["dst_listing"], file_dir_table_name=table_names["dst_file_dir"])
     mycursor.execute(query)
     myresult = mycursor.fetchall()
+    breakpoint()
     for row in myresult:
         # insert filepath in table
         filepath = row[1]

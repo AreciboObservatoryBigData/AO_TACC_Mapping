@@ -39,13 +39,6 @@ touch $OUTPUT
 # Add header to tsv file
 echo -e "fileName\tfilePath\tfileType\tfileSize\tfileAtime\tfileMtime\tfileCtime\tpoints_to" >> $OUTPUT
 
-# Use:
-# find {dir_path} -type f -exec stat --printf='\"%n\"\t%s\t%W\t%X\t%Y\t%Z\n' {} + >> {results_path}
-# to get the file name, size, last access time, last modification time, last status change time, and creation time
-find $DIR -type f -printf "%f\t%p\t%y\t%s\t%A@\t%T@\t%C@\t\n" >> $OUTPUT
-
-echo "Finished files in Directory: $DIR"
-
 # Log start time, date, and final command
 echo "Start time: $(date)" >> run_log.log
 echo "Command: find $DIR -type d -printf %f\t%p\t%y\t%s\t%A@\t%T@\t%C@\n >> $OUTPUT" >> run_log.log
@@ -56,6 +49,16 @@ echo "Command: find $DIR -type d -printf %f\t%p\t%y\t%s\t%A@\t%T@\t%C@\n >> $OUT
 find $DIR -type d -printf "%f\t%p\t%y\t%s\t%A@\t%T@\t%C@\t\n" >> $OUTPUT
 
 echo "Finished directories in Directory: $DIR"
+
+
+# Use:
+# find {dir_path} -type f -exec stat --printf='\"%n\"\t%s\t%W\t%X\t%Y\t%Z\n' {} + >> {results_path}
+# to get the file name, size, last access time, last modification time, last status change time, and creation time
+find $DIR -type f -printf "%f\t%p\t%y\t%s\t%A@\t%T@\t%C@\t\n" >> $OUTPUT
+
+echo "Finished files in Directory: $DIR"
+
+
 
 # Log start time, date, and final command
 echo "Start time: $(date)" >> run_log.log
