@@ -139,9 +139,9 @@ def insert_new_files():
     pattern = '.tsv'
     files = [os.path.join(source_dir_path,filename) for filename in os.listdir(source_dir_path) if filename.endswith(pattern)]
 
-    import_data(source_dir_path, table_names["src_files"])
+    import_data(source_dir_path, table_names["src_listing"])
 
-    import_data(destination_dir_path, table_names["dst_files"])
+    import_data(destination_dir_path, table_names["dst_listing"])
     
     insert_file_dir()
 
@@ -168,12 +168,10 @@ def delete_file_sql_contents():
 
     if option == 1:
         check_dir = source_dir_path
-        table_name = table_names["src_files"]
-        dir_table_name = table_names["src_dirs"]
+        table_name = table_names["src_listing"]
     else:
         check_dir = destination_dir_path
-        table_name = table_names["dst_files"]
-        dir_table_name = table_names["dst_dirs"]
+        table_name = table_names["dst_listing"]
     
     # get finished files
     finished_dir = os.path.join(check_dir, "finished")
@@ -195,8 +193,6 @@ def delete_file_sql_contents():
     file_path_ID = queries.get_ID_by_filepath(mydb, file_mv_path, table_names["listing_paths"])
     # delete file from sql table
     queries.delete_by_ID(mydb, file_path_ID, table_name, "listing_paths_ID")
-    # delete dir file data from sql table
-    queries.delete_by_ID(mydb, file_path_ID, dir_table_name, "listing_paths_ID")
     # delete from listing paths
     queries.delete_by_ID(mydb, file_path_ID, table_names["listing_paths"], "ID")
 
@@ -254,14 +250,14 @@ def insert_file_dir():
     query = queries.select_dir_names_no_relations.format(table_name=table_names["dst_listing"], file_dir_table_name=table_names["dst_file_dir"])
     mycursor.execute(query)
     myresult = mycursor.fetchall()
-    breakpoint()
     for row in myresult:
         # insert filepath in table
         filepath = row[1]
         dir_ID = row[0]
         print(filepath)
         mycursor = mydb.cursor()
-        query = queries.insert_file_dir.format(src_table_name= table_names['dst_files'],dst_table_name=table_names["dst_file_dir"], filepath=filepath, dir_ID=dir_ID)
+        query = queries.insert_file_dir.format(src_table_name= table_names['dst_listing'],dst_table_name=table_names["dst_file_dir"], filepath=filepath, dir_ID=dir_ID)
+
         mycursor.execute(query)
         mydb.commit()
     print("Finished inserting file dir relations")

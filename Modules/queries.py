@@ -151,7 +151,7 @@ delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
 
 select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT {table_name}_dir_ID FROM Skittles_DB.{file_dir_table_name});"
 
-insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
+insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
 
 def get_ID_by_filepath(mydb, filepath, table_name):
     # Get the ID of the file just inserted
