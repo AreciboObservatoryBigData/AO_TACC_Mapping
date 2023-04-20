@@ -44,8 +44,8 @@ table_names = {
     "dst_listing": "dst_listing",
     "dst_file_dir": "dst_file_dir_relations",
 
-
-    "listing_paths": "listing_paths"
+    "listing_paths": "listing_paths",
+    "mapping": "src_dst_mapping"
 }
 
 
@@ -57,13 +57,15 @@ def main():
             "Run setup",
             "Import new files",
             "Delete file contents from sql table",
+            "Create Mapping"
             
         ],
         "functions": [
             quit,
             setup,
             insert_new_files,
-            delete_file_sql_contents
+            delete_file_sql_contents,
+            create_mapping
 
             
         ]
@@ -76,42 +78,6 @@ def main():
         option = menus.get_option_main(run_dict["options"])
         run_dict["functions"][option]()
 
-
-    
-
-
-
-# # Insert data into dst_dirs table
-# mycursor3 = mydb.cursor()
-# mycursor3.execute("INSERT INTO dst_dirs SELECT dst_listing.FilePath, dst_listing.FileName FROM dst_listing where filetype <> 'f';")
-# mydb.commit()
-# print("Data inserted into dst_dirs")
-
-# mycursor4 = mydb.cursor()
-# mycursor4.execute("INSERT INTO src_dirs SELECT src_listing.filepath, src_listing.filename FROM src_listing where filetype <> 'f';")
-# mydb.commit()
-# print("Data inserted into src_dirs")
-
-# # delete rows from destination and source that are not files
-# mycursor5 = mydb.cursor()
-# mycursor5.execute("delete from Skittles_DB.dst_listing where filetype <> 'f'")
-# mydb.commit()
-# print("Deleted rows from dst_listing")
-
-# mycursor6 = mydb.cursor()
-# mycursor6.execute("delete from Skittles_DB.src_listing where filetype <> 'f'")
-# mydb.commit()
-# print("Deleted rows from src_listing")
-
-# # Compare tables
-# mycursor7 = mydb.cursor(buffered=True)
-# mycursor7.execute("INSERT INTO src_missing select src_listing.filename, src_listing.filepath, src_listing.FileType, src_listing.Filesize, src_listing.FileAtime, src_listing.FileMtime, src_listing.FileCtime from src_listing left join dst_listing on src_listing.filename = dst_listing.Filename where dst_listing.Filename is null;")
-# mydb.commit()
-# print("Query for comparison executed")
-
-# # close connection
-# mydb.close()
-# print("Finished")
 
 def setup():
     
@@ -200,6 +166,22 @@ def delete_file_sql_contents():
     shutil.move(chosen_file, check_dir)
 
     print(f"File {chosen_file} deleted from sql table")
+
+def create_mapping():
+    print("Creating mapping")
+
+    # Get all files in the source listing not yet in mapping
+    query = queries.select_file_names_no_relations.format(table_name=table_names["src_listing"], mapping_table_name=table_names["mapping"])
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    mycursor.close()
+    for row in myresult:
+        # Get all files in destination listing that match the filename  and insert the results into the mapping table
+        query = queries.insert_mapping_filename.format(mapping_table_name=table_names["mapping"],src_table_name=table_names["src_listing"], dst_table_name=table_names["dst_listing"], src_ID=row[0], filename=row[1])        
+        mycursor = mydb.cursor()
+        mycursor.execute(query)
+        mydb.commit()
 
 
     
