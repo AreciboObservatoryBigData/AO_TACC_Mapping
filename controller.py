@@ -6,9 +6,9 @@
 
 # TODO:
 # - Add option to resolve links to ID (Added but needs better testing before release)
-# - Add option to generate reports
-# - Add option to move files in sql DB using like
 # - Add option to move folders in sql DB using like
+# - Add option to move files in sql DB using like
+# - Add option to generate reports
 
 import mysql.connector
 import os
@@ -63,7 +63,8 @@ def main():
             "Import new files",
             "Delete file contents from sql table",
             "Create Mapping",
-            "Resolve links to ID"
+            "Resolve links to ID",
+            "Move Folder",
             
         ],
         "functions": [
@@ -72,7 +73,8 @@ def main():
             insert_new_files,
             delete_file_sql_contents,
             create_mapping,
-            resolve_links_to_ID
+            resolve_links_to_ID,
+            move_folder,
 
             
         ]
@@ -216,6 +218,45 @@ def resolve_links_to_ID():
                 mycursor.execute(query)
                 mydb.commit()
                 mycursor.close()
+
+def move_folder():
+    # Ask src or dst
+    options = [
+        "Return to main menu",
+        "Source",
+        "Destination"
+    ]
+    print("-----------MOVE FOLDER-----------")
+    option = menus.get_option_main(options)
+
+    if option == 0:
+        return
+    elif option == 1:
+        table_name = table_names["src_listing"]
+    elif option == 2:
+        table_name = table_names["dst_listing"]
+
+    # Get the filepath to move
+    dir_path = input("Enter the dirpath to move: ")
+
+    # Get where to move it to
+    new_dir_path = input("Enter the new path: ")
+
+    # Check if the old path exists in DB
+    query = queries.get_dir_by_filepath.format(table_name=table_name, filepath=dir_path)
+    
+    mycursor = mydb.cursor(dictionary=True)
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    mycursor.close()
+    if len(myresult) == 0:
+        print("Directory not found")
+        return
+    elif len(myresult) > 1:
+        print("Multiple directories found")
+        return
+    breakpoint()
+
 
     
 

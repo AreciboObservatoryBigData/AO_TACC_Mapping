@@ -11,6 +11,7 @@ select_file_names_no_relations = "SELECT ID, filename FROM {table_name} WHERE fi
 
 insert_mapping_filename = "INSERT INTO Skittles_DB.{mapping_table_name} ({src_table_name}_ID, {dst_table_name}_ID) SELECT '{src_ID}' as '{src_table_name}_ID', ID  FROM Skittles_DB.{dst_table_name} WHERE filename = '{filename}' AND filetype = 'f';"
 
+get_dir_by_filepath = "SELECT ID, filepath FROM {table_name} WHERE filepath = '{filepath}' AND filetype = 'd';"
 
 insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
 
