@@ -28,11 +28,17 @@ for index, row in included_dirs.iterrows():
     chunksize = 10 ** 6
     for chunk in pd.read_csv(output_file_path, sep='\t', chunksize=chunksize):
         # get only links
-        link_chunk = chunk[chunk['filetype'] == 'l']
+        link_chunk = chunk[chunk['filetype'] == 'l'].copy()
         # Get all ponts_to dirs by taking the filename off the end of the path
-        link_chunk['points_to'] = link_chunk['points_to'].apply(lambda x: os.path.dirname(x))
+        link_chunk['points_to_dirs'] = link_chunk['points_to'].apply(lambda x: os.path.dirname(x))
         # Get the distinct points_to values
-        points_to = chunk['points_to'].unique()
+        points_to = link_chunk['points_to_dirs'].unique()
+        # loop through the points_to values
+        for point_to in points_to:
+            # if the points_to value is not in the included dirs, add it to the missing dirs
+            if not included_dirs['dir_path'].str.contains(point_to).any():
+                # Add to missing dirs
+                missing_dirs = missing_dirs.append(pd.DataFrame({'dir_path': points_to}), ignore_index=True)
         breakpoint()
     
 
