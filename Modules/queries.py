@@ -1,4 +1,54 @@
 import os
+
+
+insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where filetype = '{type}';"
+
+delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
+
+select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT {table_name}_dir_ID FROM Skittles_DB.{file_dir_table_name});"
+
+select_file_names_no_relations = "SELECT ID, filename FROM {table_name} WHERE filetype = 'f' AND ID NOT IN(SELECT DISTINCT {table_name}_ID FROM Skittles_DB.{mapping_table_name});"
+
+insert_mapping_filename = "INSERT INTO Skittles_DB.{mapping_table_name} ({src_table_name}_ID, {dst_table_name}_ID) SELECT '{src_ID}' as '{src_table_name}_ID', ID  FROM Skittles_DB.{dst_table_name} WHERE filename = '{filename}' AND filetype = 'f';"
+
+
+insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
+
+get_link_null = "SELECT ID, filepath, points_to FROM Skittles_DB.{table_name} WHERE {table_name}_ID IS NULL AND filetype = 'l';"
+
+get_file_by_points_to = "SELECT ID, filepath FROM Skittles_DB.{table_name} WHERE filepath = '{points_to}';"
+
+update_link_ID = "UPDATE Skittles_DB.{table_name} SET {table_name}_ID = {ID} WHERE ID = {link_ID};"
+
+def get_ID_by_filepath(mydb, filepath, table_name):
+    # Get the ID of the file just inserted
+    query = f"SELECT ID FROM Skittles_DB.{table_name} WHERE filepath = '{filepath}';"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    file_ID = myresult[0][0]
+    return file_ID
+def delete_by_ID(mydb, ID, table_name, column_name):
+    # Delete all rows in the table_name where the listing_paths_ID is the file_ID
+    query = f"DELETE FROM Skittles_DB.{table_name} WHERE {column_name} = {ID};"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    mydb.commit()
+
+def get_all_data(mydb, table_name):
+    query = f"SELECT * FROM {table_name};"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    return myresult
+
+def get_data_by_column_value(mydb, name, table_name,  column_name):
+    query = f"SELECT * FROM {table_name} WHERE {column_name} = '{name}';"
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    myresult = mycursor.fetchall()
+    return myresult
+
 def delete_tables_data(mydb, tables_list):
     # get all foreign keys
     query = '''SELECT
@@ -144,46 +194,3 @@ def import_data(mydb, file, table_name, listing_paths_table_name):
         mycursor.execute(query)
 
    
-
-insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where filetype = '{type}';"
-
-delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
-
-select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT {table_name}_dir_ID FROM Skittles_DB.{file_dir_table_name});"
-
-select_file_names_no_relations = "SELECT ID, filename FROM {table_name} WHERE filetype = 'f' AND ID NOT IN(SELECT DISTINCT {table_name}_ID FROM Skittles_DB.{mapping_table_name});"
-
-insert_mapping_filename = "INSERT INTO Skittles_DB.{mapping_table_name} ({src_table_name}_ID, {dst_table_name}_ID) SELECT '{src_ID}' as '{src_table_name}_ID', ID  FROM Skittles_DB.{dst_table_name} WHERE filename = '{filename}' AND filetype = 'f';"
-
-
-insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
-
-def get_ID_by_filepath(mydb, filepath, table_name):
-    # Get the ID of the file just inserted
-    query = f"SELECT ID FROM Skittles_DB.{table_name} WHERE filepath = '{filepath}';"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    myresult = mycursor.fetchall()
-    file_ID = myresult[0][0]
-    return file_ID
-def delete_by_ID(mydb, ID, table_name, column_name):
-    # Delete all rows in the table_name where the listing_paths_ID is the file_ID
-    query = f"DELETE FROM Skittles_DB.{table_name} WHERE {column_name} = {ID};"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    mydb.commit()
-
-def get_all_data(mydb, table_name):
-    query = f"SELECT * FROM {table_name};"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    myresult = mycursor.fetchall()
-    return myresult
-
-def get_data_by_column_value(mydb, name, table_name,  column_name):
-    query = f"SELECT * FROM {table_name} WHERE {column_name} = '{name}';"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    myresult = mycursor.fetchall()
-    return myresult
-

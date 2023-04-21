@@ -4,10 +4,15 @@
 # 2023-03-23
 # Arecibo Observatory Big Data  
 
+# TODO:
+# - Add option to resolve links to ID (Added but needs better testing before release)
+# - Add option to generate reports
+# - Add option to move files in sql DB using like
+# - Add option to move folders in sql DB using like
+
 import mysql.connector
 import os
 import glob
-import sys
 from Modules import queries
 from Modules import menus
 import shutil
@@ -57,7 +62,8 @@ def main():
             "Run setup",
             "Import new files",
             "Delete file contents from sql table",
-            "Create Mapping"
+            "Create Mapping",
+            "Resolve links to ID"
             
         ],
         "functions": [
@@ -65,7 +71,8 @@ def main():
             setup,
             insert_new_files,
             delete_file_sql_contents,
-            create_mapping
+            create_mapping,
+            resolve_links_to_ID
 
             
         ]
@@ -183,6 +190,32 @@ def create_mapping():
         mycursor.execute(query)
         mydb.commit()
 
+def resolve_links_to_ID():
+
+    tables = [table_names["src_listing"], table_names["dst_listing"]]
+
+    for table in tables:
+        # Get all links that do not have a value in src_listing _ID
+        query = queries.get_link_null.format(table_name=table)
+        mycursor = mydb.cursor(dictionary=True)
+        mycursor.execute(query)
+        myresult = mycursor.fetchall()
+
+        # For each link, Insert the ID of the file it links to into the src_listing table
+        for row in myresult:
+            # get all files in listing that match the points_to value
+            query = queries.get_file_by_points_to.format(table_name=table, points_to=row["points_to"])
+            mycursor = mydb.cursor(dictionary=True)
+            mycursor.execute(query)
+            myresult = mycursor.fetchall()
+            mycursor.close()
+            # if there is only one file, insert the ID into the src_listing table
+            if len(myresult) == 1:
+                query = queries.update_link_ID.format(table_name=table, ID=myresult[0]["ID"], link_ID=row["ID"])
+                mycursor = mydb.cursor()
+                mycursor.execute(query)
+                mydb.commit()
+                mycursor.close()
 
     
 
