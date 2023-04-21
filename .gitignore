@@ -20,8 +20,9 @@ file_listings/Source_Listing/finished/*
 
 # Exlude all dir_listing files except readme and listing program and output
 dir_listing/*
-!dir_listing/src/
-!dir_listing/dst/
+!dir_listing/Output
+!dir_listing/Output/src/
+!dir_listing/Output/dst/
 !dir_listing/README.md
 dir_listing/src/*
 dir_listing/dst/*
@@ -31,7 +32,7 @@ dir_listing/dst/*
 !dir_listing/listing.py
 !dir_listing/included_dirs.tsv
 !dir_listing/missing_dirs.tsv
-!dir_listing/Output
+
 
 # Exclude all files in output except readme
 dir_listing/Output/*
