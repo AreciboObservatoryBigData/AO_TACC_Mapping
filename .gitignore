@@ -22,6 +22,9 @@ file_listings/Source_Listing/finished/*
 dir_listing/*
 !dir_listing/README.md
 !dir_listing/listing.sh
+!dir_listing/listing.py
+!dir_listing/included_dirs.tsv
+!dir_listing/missing_dirs.tsv
 !dir_listing/Output
 
 # Exclude all files in output except readme
