@@ -37,7 +37,7 @@ echo "Command: find $DIR -type f -printf %f\t%p\t%y\t%s\t%A@\t%T@\t%C@\n >> $OUT
 touch $OUTPUT
 
 # Add header to tsv file
-echo -e "fileName\tfilePath\tfileType\tfileSize\tfileAtime\tfileMtime\tfileCtime\tpoints_to" >> $OUTPUT
+echo -e "filename\tfilepath\tfiletype\tfilesize\tfileAtime\tfileMtime\tfileCtime\tpoints_to" >> $OUTPUT
 
 
 
