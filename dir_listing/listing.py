@@ -53,10 +53,9 @@ def main():
             # if there are no links, continue
             if link_chunk.empty:
                 continue
-            # get broken_links
+            # get working_links
             working_links_bool = link_chunk['points_to'].apply(lambda x: os.path.exists(x))
 
-            # for broken links that have extensions, change the points_to to the dir
             working_links = link_chunk[working_links_bool].copy()
 
             # change files points_to to dirs
@@ -91,6 +90,8 @@ def add_filesystems_by_filepath(filepath):
     output = subprocess.check_output(command, shell=True)
     output = output.decode('utf-8')
     output_info = output.split("\n")[1].split()
+
+    
 
     # Check if the filesystem filepath pair is already in the dataframe
     # if filesystem is found, check whether the current filepath has shorter path, if so, replace
