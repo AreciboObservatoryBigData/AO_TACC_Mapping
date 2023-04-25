@@ -22,6 +22,8 @@ from Modules import menus
 import shutil
 import time
 
+dir_listing_path = 'dir_listing/'
+
 listings_path = 'file_listings/'
 
 destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
@@ -41,11 +43,6 @@ print("Connected to database")
 
 #Setup vaiables
 ################
-
-################
-
-
-
 table_names = {
     "src_listing": "src_listing",
     "src_file_dir": "src_file_dir_relations",
@@ -56,7 +53,7 @@ table_names = {
     "listing_paths": "listing_paths",
     "mapping": "src_dst_mapping"
 }
-
+################
 
 def main():
 
@@ -93,6 +90,11 @@ def main():
 
 
 def setup():
+
+    # Run listing scripts in transport
+    command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(dir_listing_path)}; python3.7 listing.py'"
+    os.system(command)
+    breakpoint()
     
     run_resets()
 
@@ -110,6 +112,7 @@ def setup():
     files = glob.glob(os.path.join(destination_dir_path, '*.tsv'))
     for file in files:
         shutil.move(file, os.path.join(destination_dir_path, "finished"))
+
 
 
 def insert_new_files():
