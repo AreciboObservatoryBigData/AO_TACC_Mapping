@@ -13,20 +13,12 @@ filesystems_info_path = "filesystems_info.tsv"
 
 output_listing_dir_path = "Output/src"
 
-missing_dirs_black_list = [
-    "/proj"
-]
 
 # import the included dirs
 included_dirs = pd.read_csv(included_dirs_path, sep='\t')
-# import the filesystems info
-filesystems_df = pd.read_csv(filesystems_info_path, sep='\t')
 
-# make new empty dataframe for missing dirs
-missing_dirs = pd.DataFrame(columns=['dir_path'])
 
-# make new empty dataframe for broken links
-broken_links_total = pd.DataFrame(columns=['filepath', 'filetype', 'points_to'])
+
 
 
 

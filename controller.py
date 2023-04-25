@@ -5,6 +5,10 @@
 # Arecibo Observatory Big Data  
 
 # TODO:
+# - Add src_listing option
+# - Add, get broken_links
+# - Add missing_listing_dirs option
+# All of above in listing options
 # - Add option to resolve links to ID (Added but needs better testing before release)
 # - Add option to move folders in sql DB using like
 # - Add option to move files in sql DB using like
