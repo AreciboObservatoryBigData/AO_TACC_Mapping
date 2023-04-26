@@ -39,10 +39,16 @@ def main():
         files = glob.glob(os.path.join(link_path, "*"))
         # make all of them basenames
         files = [os.path.basename(file) for file in files]
+        # get finished directory contents
+        files.remove("finished")
+        files.extend(glob.glob(os.path.join(link_path, "finished", "*")))
+        files = [os.path.basename(file) for file in files]
+
         # create soft link if not already created
         if not os.path.basename(output_file_path) in files:
             command = f"ln -s {os.path.abspath(output_file_path)} {link_path}"
             os.system(command)
+        
         
 
 

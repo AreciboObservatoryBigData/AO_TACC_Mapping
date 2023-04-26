@@ -21,6 +21,9 @@ get_file_by_points_to = "SELECT ID, filepath FROM Skittles_DB.{table_name} WHERE
 
 update_link_ID = "UPDATE Skittles_DB.{table_name} SET {table_name}_ID = {ID} WHERE ID = {link_ID};"
 
+get_null_broken_links = "SELECT ID, filepath, points_to FROM Skittles_DB.{table_name} WHERE filetype = 'l' AND broken_link IS NULL;"
+
+update_broken_by_ID = "UPDATE Skittles_DB.{table_name} SET broken_link = {value} WHERE ID = {ID};"
 def get_ID_by_filepath(mydb, filepath, table_name):
     # Get the ID of the file just inserted
     query = f"SELECT ID FROM Skittles_DB.{table_name} WHERE filepath = '{filepath}';"

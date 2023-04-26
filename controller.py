@@ -20,11 +20,13 @@ import glob
 from Modules import queries
 from Modules import menus
 import shutil
+import subprocess
 import time
 
 dir_listing_path = 'dir_listing/'
 
 listings_path = 'file_listings/'
+general_files_path = 'general_files/'
 
 destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
 source_dir_path = os.path.join(listings_path, 'Source_Listing/')
@@ -94,7 +96,6 @@ def setup():
     # Run listing scripts in transport
     command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(dir_listing_path)}; python3.7 listing.py'"
     os.system(command)
-    breakpoint()
     
     run_resets()
 
@@ -104,6 +105,9 @@ def setup():
 
     insert_file_dir()
 
+    # Identify actual broken links
+    add_broken_links()
+
     # move files to finished folder
     files = glob.glob(os.path.join(source_dir_path, '*.tsv'))
     for file in files:
@@ -112,7 +116,8 @@ def setup():
     files = glob.glob(os.path.join(destination_dir_path, '*.tsv'))
     for file in files:
         shutil.move(file, os.path.join(destination_dir_path, "finished"))
-
+    
+    
 
 
 def insert_new_files():
@@ -264,6 +269,39 @@ def move_folder():
         return
     breakpoint()
 
+
+def add_broken_links():
+    print("Adding broken links")
+    # Create broken links report
+    # Get all links in src_listing
+    query = queries.get_null_broken_links.format(table_name=table_names["src_listing"])
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    src_links = mycursor.fetchall()
+    # iterate through links and check if they are broken
+    for i, link in enumerate(src_links):
+        if i % 1000 == 0:
+            print(f"{i}/{len(src_links)}")
+        link_ID = link[0]
+        points_to = link[2]
+        # Check if the link is broken
+        command = f"ssh -J remote.naic.edu -t transport ls {points_to}"
+        result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode == 1:
+            query2 = queries.update_broken_by_ID.format(table_name=table_names["src_listing"], value=1, ID=link_ID)
+            mycursor = mydb.cursor()
+            mycursor.execute(query2)
+            mydb.commit()
+            mycursor.close()
+        else:
+            query2 = queries.update_broken_by_ID.format(table_name=table_names["src_listing"], value=0, ID=link_ID)
+            mycursor = mydb.cursor()
+            mycursor.execute(query2)
+            mydb.commit()
+            mycursor.close()
+            
+
+    
 
     
 

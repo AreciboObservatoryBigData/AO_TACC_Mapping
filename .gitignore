@@ -4,6 +4,10 @@ file_listings/*
 !file_listings/Source_Listing
 !file_listings/README.md
 
+# Exclude general_files
+general_files/*
+!general_files/README.md
+
 # exclude all dest and src files
 file_listings/Destination_Listing/*
 file_listings/Source_Listing/*
