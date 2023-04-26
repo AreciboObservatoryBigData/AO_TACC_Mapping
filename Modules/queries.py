@@ -23,7 +23,14 @@ update_link_ID = "UPDATE Skittles_DB.{table_name} SET {table_name}_ID = {ID} WHE
 
 get_null_broken_links = "SELECT ID, points_to, broken_link FROM Skittles_DB.{table_name} WHERE filetype = 'l' AND broken_link IS NULL;"
 
-update_broken_by_ID = "UPDATE Skittles_DB.{table_name} SET broken_link = {value} WHERE ID = {ID};"
+update_broken_by_ID_list = "UPDATE Skittles_DB.{table_name} SET broken_link = {value} WHERE ID IN {ID_list};"
+
+update_fk_table_ID = '''
+Update Skittles_DB.{table_name} L1 
+JOIN Skittles_DB.{table_name} L2
+ON L1.filepath = L2.points_to
+SET L2.{table_name}_ID = L1.ID;'''
+
 def get_ID_by_filepath(mydb, filepath, table_name):
     # Get the ID of the file just inserted
     query = f"SELECT ID FROM Skittles_DB.{table_name} WHERE filepath = '{filepath}';"

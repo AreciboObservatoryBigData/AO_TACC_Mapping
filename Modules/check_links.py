@@ -39,9 +39,9 @@ def check_link(link_path):
     command = f"test -e {link_path}"
     result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode == 0:
-        return 1
-    else:
         return 0
+    else:
+        return 1
 
 def chunk_to_file(row):
     global f

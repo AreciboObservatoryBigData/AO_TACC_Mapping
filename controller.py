@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3.7
 # Software to import data from a csv or txt file into a mySQL table and compare the tables to check for missing files.
 # Emanuel Rodriguez
 # 2023-03-23
@@ -22,6 +22,7 @@ from Modules import menus
 import shutil
 import subprocess
 import time
+import pandas as pd
 
 dir_listing_path = 'dir_listing/'
 
@@ -110,6 +111,9 @@ def setup():
 
     # Identify actual broken links
     add_broken_links()
+
+    # Resolve points_to to ID
+    resolve_links_to_ID()
 
     # move files to finished folder
     files = glob.glob(os.path.join(source_dir_path, '*.tsv'))
@@ -309,24 +313,33 @@ def add_broken_links():
     # Read new link_info file
     new_link_info_path = os.path.join(os.path.dirname(link_info_path), f"new_{os.path.basename(link_info_path)}")
     f = open(new_link_info_path, "r")  
+    print("Updating broken links in DB")
+    batch_size = 10 ** 4
+    
+    # process the file in batches using pandas
+    for df in pd.read_csv(f, sep="\t", chunksize=batch_size):
+        tasks = []
+        # group by 0 and 1, add to tasks
+        tasks.append(tuple(df[df["broken_link"] == 0]["ID"].to_list()))
+        tasks.append(tuple(df[df["broken_link"] == 1]["ID"].to_list()))
 
-    first_line = True
-    for line in f:
-        if first_line:
-            first_line = False
-            continue
-        # take away endline
-        line = line[:-1]
-        split_line = line.split("\t")
-        # If split_line is [] then the line is empty
-        if split_line == []:
-            continue
-        query = queries.update_broken_link.format(table_name=table_names["src_listing"], ID=split_line[0], broken_link=split_line[-1])
-        breakpoint()
-        mycursor = mydb.cursor()
-        mycursor.execute(query)
-        mydb.commit()
-        mycursor.close()
+        # update src_listing table
+        for i, IDs in enumerate(tasks):
+            if len(IDs) > 0:
+                IDs_str = str(IDs)
+                query = queries.update_broken_by_ID_list.format(table_name=table_names["src_listing"], value=i, ID_list=IDs_str)
+                mycursor = mydb.cursor()
+                mycursor.execute(query)
+                mydb.commit()
+                mycursor.close()
+                
+
+    # delete both link_info files
+    os.remove(link_info_path)
+    os.remove(new_link_info_path)
+
+def resolve_links_to_ID():
+    None
 
 
     
