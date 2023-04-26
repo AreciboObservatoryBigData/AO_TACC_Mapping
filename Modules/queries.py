@@ -29,7 +29,8 @@ update_fk_table_ID = '''
 Update Skittles_DB.{table_name} L1 
 JOIN Skittles_DB.{table_name} L2
 ON L1.filepath = L2.points_to
-SET L2.{table_name}_ID = L1.ID;'''
+SET L2.{table_name}_ID = L1.ID
+WHERE L2.{table_name}_ID IS NULL;'''
 
 def get_ID_by_filepath(mydb, filepath, table_name):
     # Get the ID of the file just inserted

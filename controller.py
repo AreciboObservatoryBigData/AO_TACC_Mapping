@@ -339,7 +339,19 @@ def add_broken_links():
     os.remove(new_link_info_path)
 
 def resolve_links_to_ID():
-    None
+    print("Resolving links to ID")
+    query = queries.update_fk_table_ID.format(table_name=table_names["src_listing"])
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    mydb.commit()
+    mycursor.close()
+
+    # Do the same for dst_listing
+    query = queries.update_fk_table_ID.format(table_name=table_names["dst_listing"])
+    mycursor = mydb.cursor()
+    mycursor.execute(query)
+    mydb.commit()
+    mycursor.close()
 
 
     
