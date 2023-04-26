@@ -27,6 +27,9 @@ dir_listing_path = 'dir_listing/'
 
 listings_path = 'file_listings/'
 general_files_path = 'general_files/'
+modules_path = 'Modules/'
+
+link_info_path = os.path.join(general_files_path, 'link_info.tsv')
 
 destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
 source_dir_path = os.path.join(listings_path, 'Source_Listing/')
@@ -278,28 +281,53 @@ def add_broken_links():
     mycursor = mydb.cursor()
     mycursor.execute(query)
     src_links = mycursor.fetchall()
+    # open link_info file as write
+    f = open(link_info_path, "w")
+    # write header
+    line = "ID\tpoints_to\tbroken_link\n"
+    f.write(line)
     # iterate through links and check if they are broken
-    for i, link in enumerate(src_links):
-        if i % 1000 == 0:
-            print(f"{i}/{len(src_links)}")
-        link_ID = link[0]
-        points_to = link[2]
-        # Check if the link is broken
-        command = f"ssh -J remote.naic.edu -t transport ls {points_to}"
-        result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if result.returncode == 1:
-            query2 = queries.update_broken_by_ID.format(table_name=table_names["src_listing"], value=1, ID=link_ID)
-            mycursor = mydb.cursor()
-            mycursor.execute(query2)
-            mydb.commit()
-            mycursor.close()
-        else:
-            query2 = queries.update_broken_by_ID.format(table_name=table_names["src_listing"], value=0, ID=link_ID)
-            mycursor = mydb.cursor()
-            mycursor.execute(query2)
-            mydb.commit()
-            mycursor.close()
-            
+    for i, link_info in enumerate(src_links):
+        line = ""
+        for element in link_info:
+            line += str(element) + "\t"
+        # Take away trailing tab
+        line = line[:-1]
+        # Add endline
+        line += "\n"
+        f.write(line)
+    f.close()
+        
+
+    # Check if the link is broken
+    command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(modules_path)};python3.7 check_links.py;'"
+    print("Checking links on transport")
+    
+    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    # subprocess.call(command, shell=True)
+    # Read new link_info file
+    new_link_info_path = os.path.join(os.path.dirname(link_info_path), f"new_{os.path.basename(link_info_path)}")
+    f = open(new_link_info_path, "r")  
+
+    first_line = True
+    for line in f:
+        if first_line:
+            first_line = False
+            continue
+        # take away endline
+        line = line[:-1]
+        split_line = line.split("\t")
+        # If split_line is [] then the line is empty
+        if split_line == []:
+            continue
+        query = queries.update_broken_link.format(table_name=table_names["src_listing"], ID=split_line[0], broken_link=split_line[-1])
+        breakpoint()
+        mycursor = mydb.cursor()
+        mycursor.execute(query)
+        mydb.commit()
+        mycursor.close()
+
 
     
 
