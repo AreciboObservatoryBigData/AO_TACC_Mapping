@@ -29,6 +29,7 @@ dir_listing/*
 !dir_listing/listing.sh
 !dir_listing/listing.py
 !dir_listing/included_dirs.tsv
+!dir_listing/blacklist.txt
 
 
 

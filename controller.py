@@ -139,6 +139,12 @@ def insert_new_files():
     
     insert_file_dir()
 
+    # Identify actual broken links
+    add_broken_links()
+
+    # Resolve points_to to ID
+    resolve_links_to_ID()
+
     # move files to finished folder
     for file in files:
         # move file to finished folder

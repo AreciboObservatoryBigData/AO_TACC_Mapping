@@ -157,8 +157,9 @@ def import_data(mydb, file, table_name, listing_paths_table_name):
 
 
 
-    load_query = f'''LOAD DATA LOCAL INFILE '{file}' INTO TABLE Skittles_DB.{table_name} 
+    load_query = f'''LOAD DATA LOCAL INFILE '{file}' REPLACE INTO TABLE Skittles_DB.{table_name} 
                     FIELDS TERMINATED BY '\\t'
+                    LINES TERMINATED BY '\\n'
                     IGNORE 1 ROWS
                     (filename, filepath, filetype, filesize,fileAtime,fileMtime,fileCtime,points_to);
                     '''

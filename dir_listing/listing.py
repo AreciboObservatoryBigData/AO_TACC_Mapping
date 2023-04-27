@@ -19,6 +19,12 @@ output_listing_dir_path = "Output/src"
 included_dirs = pd.read_csv(included_dirs_path, sep='\t')
 link_path = "../file_listings/Source_Listing"
 
+blacklist_path = "blacklist.txt"
+
+# import the blacklist
+blacklist = []
+with open(blacklist_path, "rb") as f:
+    blacklist = f.readlines()
 
 
 
@@ -44,10 +50,28 @@ def main():
         files.extend(glob.glob(os.path.join(link_path, "finished", "*")))
         files = [os.path.basename(file) for file in files]
 
+        
+        # Remove all lines that are found in the blacklist
+        encoded_included_dir = row[0].encode()
+        blacklist_included_dir = [element for element in blacklist if encoded_included_dir in element]
+        if blacklist_included_dir != []:
+            with open(output_file_path, "rb") as f:
+                lines_to_remove = []
+                i = 1
+                for line in f:
+                    if line in blacklist_included_dir:
+                        lines_to_remove.append(i)
+                        blacklist_included_dir.remove(line)
+                    i += 1
+        # for each lines to remove, remove the line from the file using sed
+        for line in lines_to_remove:
+            command = f"sed -i '{line}d' {output_file_path}"
+            os.system(command)
         # create soft link if not already created
         if not os.path.basename(output_file_path) in files:
             command = f"ln -s {os.path.abspath(output_file_path)} {link_path}"
             os.system(command)
+
         
         
 
