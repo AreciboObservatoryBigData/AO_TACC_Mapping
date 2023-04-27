@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import numpy as np
 import glob
+import re
 
 
 
@@ -39,33 +40,91 @@ def main():
             # run listing script
             command = f"./listing.sh {row[0]} {output_file_path}"
             os.system(command)
+            
+            # Replace all lines that don't decode with the correct line or contain a control character
+            # open the file
+            f = open(output_file_path, "rb")
+            i = 0
+            replacements = []
+            for line in f:
+                
 
-            # Remove all lines that are found in the blacklist
-            encoded_included_dir = row[0].encode()
-            blacklist_included_dir = [element for element in blacklist if encoded_included_dir in element]
-            if blacklist_included_dir != []:
-                with open(output_file_path, "rb") as f:
-                    lines_to_remove = []
-                    i = 1
-                    for line in f:
-                        if line in blacklist_included_dir:
-                            lines_to_remove.append(i)
-                            blacklist_included_dir.remove(line)
-                        i += 1
-            # for each lines to remove, remove the line from the file using sed
-            for line in lines_to_remove:
-                command = f"sed -i '{line}d' {output_file_path}"
-                os.system(command)
-        print(f"Finished listing {output_file_path}")
+                try:
+                    line.decode()
+                except:
+                    # get the filepath pattern
+                    split_dir_bytes = line[line.index(b"\t/")+1:].split(b"/")[0:-1]
+                    split_dir = [element.decode() for element in split_dir_bytes]
+                    dir_path = "/".join(split_dir)
+                    filename = line[:line.index(b"\t/")]
+                    files = os.listdir(dir_path)
+                    listing_filename = ""
+                    filtered_files = files.copy()
+                    i2 = 0
+                    for char_int in filename:
+                        try:
+                            filtered_files = [element for element in filtered_files if filename[i2:i2+1].decode() == element[i2]]
+                        except:
+                            i2+=1
+                            continue
+                        if len(filtered_files) == 1:
+                            listing_filename = filtered_files[0]
+                            break
+                        i2+=1
+                    file_path = os.path.join(dir_path, listing_filename)
 
-        # get all files in the directory
-        files = glob.glob(os.path.join(link_path, "*"))
-        # make all of them basenames
-        files = [os.path.basename(file) for file in files]
-        # get finished directory contents
-        files.remove("finished")
-        files.extend(glob.glob(os.path.join(link_path, "finished", "*")))
-        files = [os.path.basename(file) for file in files]
+                    # get index where we find \t and 4 numbers
+                    pattern = b"\t\d{4}"
+                    match = re.search(pattern, line)
+                    rest_of_line = line[match.start()+1:]
+                    replacement_line = listing_filename + "\t" + file_path + "\t" + rest_of_line.decode()
+
+                    # Change filepath special \ to their hex representation except for \t and \n
+                    new_replacement_line = ""
+                    for i2, char in enumerate(replacement_line):
+                        try:
+                            new_replacement_line+=replacement_line[i2:i2+1].encode().decode()
+
+                        except:
+                            new_replacement_line+=f"chr({ord(char)})"
+                    
+                    # replace all control characters with their integer representation, except for \t and \n
+
+                    pattern = r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]'
+                    new_replacement_line = re.sub(pattern, lambda x: f"chr({ord(x.group(0))})", new_replacement_line)
+
+                    replacements.append([i+1, new_replacement_line])
+                
+                i+=1
+
+
+            f.close()
+            backup_file_path = output_file_path + ".bak"
+            f2 = open(backup_file_path, "w")
+            f = open(output_file_path, "rb")
+            i = 1
+            j = 0
+            with open(output_file_path, "rb") as f:
+                for line in f:
+                    try:
+                        if j < len(replacements):
+                            if i == replacements[j][0] :
+                                f2.write(replacements[j][1])
+                                j+=1
+                            else:
+                                f2.write(line.decode())
+                    except:
+                        breakpoint()
+                    i+=1
+
+            f2.close()
+
+            # remove original file
+            os.remove(output_file_path)
+            # rename backup file
+            os.rename(backup_file_path, output_file_path)
+
+
 
         
         

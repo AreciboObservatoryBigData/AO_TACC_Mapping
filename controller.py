@@ -102,7 +102,7 @@ def setup():
     os.system(command)
     
     run_resets()
-
+    breakpoint()
     run_imports()
     
 
