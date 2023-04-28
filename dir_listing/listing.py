@@ -126,7 +126,18 @@ def main():
 
 
 
-        
+        files = os.listdir(link_path)
+        files = [os.basename(file) for file in files]
+        # Take away finished and readmes
+        files.remove("finished")
+        files = [file for file in files if not file.endswith(".md")]
+
+        # get all files in finished dir
+        finished_files = os.listdir(os.path.join(link_path, "finished"))
+        finished_files = [os.path.basename(file) for file in finished_files]
+
+        # extend files with finished files
+        files.extend(finished_files)
         
         # create soft link if not already created
         if not os.path.basename(output_file_path) in files:
