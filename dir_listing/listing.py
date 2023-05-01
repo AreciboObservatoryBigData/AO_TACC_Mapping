@@ -36,115 +36,119 @@ def main():
     global included_dirs
     # loop through the included dirs
     for index, row in included_dirs.iterrows():
-        output_file_path = os.path.join(output_listing_dir_path, row[0].replace('/', '_')) + ".tsv"
+        output_file_path = os.path.join(output_listing_dir_path, row[0].replace('/', '_')) + ".txt"
         # if file not found, run listing script
-        if not os.path.exists(output_file_path):
-            # run listing script
-            command = f"./listing.sh {row[0]} {output_file_path}"
-            os.system(command)
-            
+        if os.path.exists(output_file_path):
+            continue
+        # run listing script
+        command = f"./listing.sh {row[0]} {output_file_path}"
+        os.system(command)
+        
         # Replace all lines that don't decode with the correct line or contain a control character
         # Steps: 
         # Check if you can decode the line, if not,run through process that changes the control characters and the symbols you cant decode
         # If it has any control characters, run through the same process
-        
-            # open the file
-            f = open(output_file_path, "rb")
-            i = 0
-            replacements = []
-            for b_line in f:
+    
+        # open the file
+        f = open(output_file_path, "rb")
+        i = 0
+        replacements = []
+        for b_line in f:
 
-                if i ==0:
-                    i+=1
+            if i ==0:
+                i+=1
+                continue
+
+            # if line cant decode, then run code to add replacement
+            # if there's a \t on the filname or filepath, run code to add replacement
+
+            decodeable, make_replacement_bool = check_if_replacement(i,b_line)
+
+            
+
+            if make_replacement_bool == False:
+                i+=1
+                continue
+            
+            # If make_replacement is true, then get the python filename using glob, then covert each special character to \(int_value of char)
+            # split b_line
+            split_b_line = b_line.split(b"\t,;")
+
+            # Get all characters in the filepath that can be decoded and not special characters, fill the others with ?* and check with glob
+            file_path_pattern_q = ""
+            file_path_pattern_w = ""
+            for char_int in split_b_line[1]:
+                char = chr(char_int)
+                if char not in string.printable:
+                    file_path_pattern_q += "?"
+                    file_path_pattern_w += "*"
                     continue
 
-                # if line cant decode, then run code to add replacement
-                # if there's a \t on the filname or filepath, run code to add replacement
+                file_path_pattern_q += char
+                file_path_pattern_w += char
+            # Get actual filepath
+            glob_filepath  = glob.glob(file_path_pattern_q)
 
-                decodeable, make_replacement_bool = check_if_replacement(i,b_line)
+            # if theres no result, then try with w
+            if glob_filepath == []:
+                glob_filepath  = glob.glob(file_path_pattern_w)
 
-                
+            if len(glob_filepath) > 1:
+                breakpoint()
+                print("ERROR! FOUND MORE THAN ONE RESULT FOR THE PATTERN")
+                print(file_path_pattern_q)
+                print(file_path_pattern_w)
+                print(f"IN FILE: {output_file_path}")
+                print(f"LINE: {i}")
 
-                if make_replacement_bool == False:
-                    i+=1
-                    continue
-                
-                # If make_replacement is true, then get the python filename using glob, then covert each special character to \(int_value of char)
-                # split b_line
-                split_b_line = b_line.split(b"\t,;")
+            filepath = glob_filepath[0]
 
-                # Get all characters in the filepath that can be decoded and not special characters, fill the others with ?* and check with glob
-                file_path_pattern_q = ""
-                file_path_pattern_w = ""
-                for char_int in split_b_line[1]:
-                    char = chr(char_int)
-                    if char not in string.printable:
-                        file_path_pattern_q += "?"
-                        file_path_pattern_w += "*"
+
+            # replace each special charater with \(int_value)
+            new_filepath = "".join([char if char in string.printable else f";({ord(char)})" for char in filepath])
+
+            # change the values in split_b_line
+            split_b_line[1] = new_filepath.encode()
+            split_b_line[0] = os.path.basename(new_filepath).encode()
+
+            replacement_line = b"\t,;".join(split_b_line)
+            replacement_line = replacement_line.decode()
+
+            replacements.append([i+1, replacement_line])
+
+            i+=1
+
+
+
+
+
+        f.close()
+        backup_file_path = output_file_path + ".bak"
+        f2 = open(backup_file_path, "w")
+        f = open(output_file_path, "rb")
+        i = 1
+        j = 0
+        with open(output_file_path, "rb") as f:
+            for line in f:
+
+                if j < len(replacements):
+                    if i == replacements[j][0] :
+                        # print(replacements[j][1])
+                        f2.write(replacements[j][1])
+                        j+=1
+                        i+=1
                         continue
-
-                    file_path_pattern_q += char
-                    file_path_pattern_w += char
-                # Get actual filepath
-                glob_filepath  = glob.glob(file_path_pattern_q)
-
-                # if theres no result, then try with w
-                if glob_filepath == []:
-                    glob_filepath  = glob.glob(file_path_pattern_w)
-
-                if len(glob_filepath) > 1:
-                    breakpoint()
-                    print("ERROR! FOUND MORE THAN ONE RESULT FOR THE PATTERN")
-                    print(file_path_pattern)
-                    print(f"IN FILE: {output_file_path}")
-                    print(f"LINE: {i}")
-
-                filepath = glob_filepath[0]
-
-
-                # replace each special charater with \(int_value)
-                new_filepath = "".join([char if char in string.printable else f";({ord(char)})" for char in filepath])
-
-                # change the values in split_b_line
-                split_b_line[1] = new_filepath.encode()
-                split_b_line[0] = os.path.basename(new_filepath).encode()
-
-                replacement_line = b"\t,;".join(split_b_line)
-                replacement_line = replacement_line.decode()
-
-                replacements.append([i+1, replacement_line])
-
+                    
+                f2.write(line.decode())
+                
                 i+=1
 
+        f2.close()
 
-
-
-
-            f.close()
-            backup_file_path = output_file_path + ".bak"
-            f2 = open(backup_file_path, "w")
-            f = open(output_file_path, "rb")
-            i = 1
-            j = 0
-            with open(output_file_path, "rb") as f:
-                for line in f:
-
-                    if j < len(replacements):
-                        if i == replacements[j][0] :
-                            print(replacements[j][1])
-                            f2.write(replacements[j][1])
-                            j+=1
-                        else:
-                            f2.write(line.decode())
-                    
-                    i+=1
-
-            f2.close()
-
-            # remove original file
-            os.remove(output_file_path)
-            # rename backup file
-            os.rename(backup_file_path, output_file_path)
+        # remove original file
+        os.remove(output_file_path)
+        # rename backup file
+        os.rename(backup_file_path, output_file_path)
 
 
 

@@ -426,7 +426,7 @@ def insert_file_dir():
 
 
 def import_data(dir_path, table_name):
-    pattern = '.tsv'
+    pattern = '.txt'
     files = [os.path.join(dir_path,filename) for filename in os.listdir(dir_path) if filename.endswith(pattern)]
 
     if len(files) == 0:
