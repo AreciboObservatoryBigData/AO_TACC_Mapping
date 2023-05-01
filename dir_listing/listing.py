@@ -5,6 +5,8 @@ import os
 import numpy as np
 import glob
 import re
+import string
+
 
 
 
@@ -41,61 +43,81 @@ def main():
             command = f"./listing.sh {row[0]} {output_file_path}"
             os.system(command)
             
-            # Replace all lines that don't decode with the correct line or contain a control character
+        # Replace all lines that don't decode with the correct line or contain a control character
+        # Steps: 
+        # Check if you can decode the line, if not,run through process that changes the control characters and the symbols you cant decode
+        # If it has any control characters, run through the same process
+        
             # open the file
             f = open(output_file_path, "rb")
             i = 0
             replacements = []
-            for line in f:
+            for b_line in f:
+
+                if i ==0:
+                    i+=1
+                    continue
+
+                # if line cant decode, then run code to add replacement
+                # if there's a \t on the filname or filepath, run code to add replacement
+
+                decodeable, make_replacement_bool = check_if_replacement(i,b_line)
+
                 
 
-                try:
-                    line.decode()
-                except:
-                    # get the filepath pattern
-                    split_dir_bytes = line[line.index(b"\t/")+1:].split(b"/")[0:-1]
-                    split_dir = [element.decode() for element in split_dir_bytes]
-                    dir_path = "/".join(split_dir)
-                    filename = line[:line.index(b"\t/")]
-                    files = os.listdir(dir_path)
-                    listing_filename = ""
-                    filtered_files = files.copy()
-                    i2 = 0
-                    for char_int in filename:
-                        try:
-                            filtered_files = [element for element in filtered_files if filename[i2:i2+1].decode() == element[i2]]
-                        except:
-                            i2+=1
-                            continue
-                        if len(filtered_files) == 1:
-                            listing_filename = filtered_files[0]
-                            break
-                        i2+=1
-                    file_path = os.path.join(dir_path, listing_filename)
-
-                    # get index where we find \t and 4 numbers
-                    pattern = b"\t\d{4}"
-                    match = re.search(pattern, line)
-                    rest_of_line = line[match.start()+1:]
-                    replacement_line = listing_filename + "\t" + file_path + "\t" + rest_of_line.decode()
-
-                    # Change filepath special \ to their hex representation except for \t and \n
-                    new_replacement_line = ""
-                    for i2, char in enumerate(replacement_line):
-                        try:
-                            new_replacement_line+=replacement_line[i2:i2+1].encode().decode()
-
-                        except:
-                            new_replacement_line+=f"chr({ord(char)})"
-                    
-                    # replace all control characters with their integer representation, except for \t and \n
-
-                    pattern = r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]'
-                    new_replacement_line = re.sub(pattern, lambda x: f"chr({ord(x.group(0))})", new_replacement_line)
-
-                    replacements.append([i+1, new_replacement_line])
+                if make_replacement_bool == False:
+                    i+=1
+                    continue
                 
+                # If make_replacement is true, then get the python filename using glob, then covert each special character to \(int_value of char)
+                # split b_line
+                split_b_line = b_line.split(b"\t,;")
+
+                # Get all characters in the filepath that can be decoded and not special characters, fill the others with ?* and check with glob
+                file_path_pattern_q = ""
+                file_path_pattern_w = ""
+                for char_int in split_b_line[1]:
+                    char = chr(char_int)
+                    if char not in string.printable:
+                        file_path_pattern_q += "?"
+                        file_path_pattern_w += "*"
+                        continue
+
+                    file_path_pattern_q += char
+                    file_path_pattern_w += char
+                # Get actual filepath
+                glob_filepath  = glob.glob(file_path_pattern_q)
+
+                # if theres no result, then try with w
+                if glob_filepath == []:
+                    glob_filepath  = glob.glob(file_path_pattern_w)
+
+                if len(glob_filepath) > 1:
+                    breakpoint()
+                    print("ERROR! FOUND MORE THAN ONE RESULT FOR THE PATTERN")
+                    print(file_path_pattern)
+                    print(f"IN FILE: {output_file_path}")
+                    print(f"LINE: {i}")
+
+                filepath = glob_filepath[0]
+
+
+                # replace each special charater with \(int_value)
+                new_filepath = "".join([char if char in string.printable else f";({ord(char)})" for char in filepath])
+
+                # change the values in split_b_line
+                split_b_line[1] = new_filepath.encode()
+                split_b_line[0] = os.path.basename(new_filepath).encode()
+
+                replacement_line = b"\t,;".join(split_b_line)
+                replacement_line = replacement_line.decode()
+
+                replacements.append([i+1, replacement_line])
+
                 i+=1
+
+
+
 
 
             f.close()
@@ -106,15 +128,15 @@ def main():
             j = 0
             with open(output_file_path, "rb") as f:
                 for line in f:
-                    try:
-                        if j < len(replacements):
-                            if i == replacements[j][0] :
-                                f2.write(replacements[j][1])
-                                j+=1
-                            else:
-                                f2.write(line.decode())
-                    except:
-                        breakpoint()
+
+                    if j < len(replacements):
+                        if i == replacements[j][0] :
+                            print(replacements[j][1])
+                            f2.write(replacements[j][1])
+                            j+=1
+                        else:
+                            f2.write(line.decode())
+                    
                     i+=1
 
             f2.close()
@@ -127,7 +149,7 @@ def main():
 
 
         files = os.listdir(link_path)
-        files = [os.basename(file) for file in files]
+        files = [os.path.basename(file) for file in files]
         # Take away finished and readmes
         files.remove("finished")
         files = [file for file in files if not file.endswith(".md")]
@@ -145,7 +167,39 @@ def main():
             os.system(command)
 
         
-        
+def check_if_replacement(i, b_line):
+    make_replacement_bool = False
+    decodable = False
+    
+    try:
+        b_line.decode()
+        decodable = True
+    except:
+        make_replacement_bool = True
+    
+    # if run still false, check for \t in filename or filepath
+    if make_replacement_bool == False:
+        # look for the b'\t/' in the line
+        line = b_line.decode()
+        # get the filepath
+        line_split = line.split("\t,;")[1]
+
+        # check for control characters
+        has_control_characters_bool = has_control_characters(line)
+        make_replacement_bool = has_control_characters_bool
+
+    return decodable, make_replacement_bool
+
+
+def has_control_characters(input_string):
+    # Iterate over each character in the input string
+    for char in input_string:
+        # Check if the character is not printable
+        if char not in string.printable:
+            return True
+    # If we reach this point, there are no control characters
+    return False
+
 
 
 main()

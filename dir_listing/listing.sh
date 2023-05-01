@@ -43,13 +43,13 @@ echo -e "filename\tfilepath\tfiletype\tfilesize\tfileAtime\tfileMtime\tfileCtime
 
 # Log start time, date, and final command
 echo "Start time: $(date)" >> run_log.log
-echo "Command: find $OUTPUT -printf %f\t%p\t%y\t%s\t%A@\t%T@\t%C@\t -exec sh -c 'readlink -f \"\$0\"' {} \; -printf \n" >> run_log.log
+echo "Command: find $DIR -printf %f\t,;%p\t,;%y\t,;%s\t,;%A@\t,;%T@\t,;%C@\t,; -exec sh -c 'readlink -f \"\$0\"' {} \; -printf \n" >> run_log.log
 
 
 # Use:
 # find {dir_path} -type f -exec stat --printf='\"%n\"\t%s\t%W\t%X\t%Y\t%Z\n' {} + >> {results_path}
 # to get the file name, size, last access time, last modification time, last status change time, and creation time
-find $DIR -printf "%f\t%p\t%y\t%s\t%A@\t%T@\t%C@\t" -exec bash -c 'readlink "$0" 2>error.log || echo -n' {} \; -printf "\n" | sed '/^$/d' >> $OUTPUT
+find $DIR -printf "%f\t,;%p\t,;%y\t,;%s\t,;%A@\t,;%T@\t,;%C@\t,;" -exec bash -c 'readlink "$0" 2>error.log || echo -n' {} \; -printf "\n" | sed '/^$/d' >> $OUTPUT
 
 
 
