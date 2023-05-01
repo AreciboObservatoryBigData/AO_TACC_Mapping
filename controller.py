@@ -400,6 +400,8 @@ def insert_file_dir():
         dir_ID = row[0]
         filepath = row[1]
         print(filepath)
+        if "/share/pserverd.sdb/fileserver/data/home/dserver0/pat19/hbrooks/Pictures/" in filepath:
+            breakpoint()
         mycursor = mydb.cursor()
         query = queries.insert_file_dir.format(src_table_name= table_names['src_listing'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
         mycursor.execute(query)

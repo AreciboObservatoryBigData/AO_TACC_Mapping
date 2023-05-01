@@ -41,7 +41,8 @@ def main():
         if os.path.exists(output_file_path):
             continue
         # run listing script
-        command = f"./listing.sh {row[0]} {output_file_path}"
+        # command = f"./listing.sh {row[0]} {output_file_path}"
+        command = "./listing.sh " + row[0] + " " + output_file_path
         os.system(command)
         
         # Replace all lines that don't decode with the correct line or contain a control character
@@ -98,14 +99,15 @@ def main():
                 print("ERROR! FOUND MORE THAN ONE RESULT FOR THE PATTERN")
                 print(file_path_pattern_q)
                 print(file_path_pattern_w)
-                print(f"IN FILE: {output_file_path}")
-                print(f"LINE: {i}")
+                print("IN FILE: "+output_file_path)
+                print("LINE: "+i)
 
             filepath = glob_filepath[0]
 
 
             # replace each special charater with \(int_value)
-            new_filepath = "".join([char if char in string.printable else f";({ord(char)})" for char in filepath])
+
+            new_filepath = "".join([char if char in string.printable else ";("+ord(char)+")" for char in filepath ])
 
             # change the values in split_b_line
             split_b_line[1] = new_filepath.encode()
@@ -167,7 +169,7 @@ def main():
         
         # create soft link if not already created
         if not os.path.basename(output_file_path) in files:
-            command = f"ln -s {os.path.abspath(output_file_path)} {link_path}"
+            command = "ln -s "+os.path.abspath(output_file_path)+" "+link_path
             os.system(command)
 
         
