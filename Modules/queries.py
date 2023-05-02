@@ -13,7 +13,10 @@ insert_mapping_filename = "INSERT INTO Skittles_DB.{mapping_table_name} ({src_ta
 
 get_dir_by_filepath = "SELECT ID, filepath FROM {table_name} WHERE filepath = '{filepath}' AND filetype = 'd';"
 
-insert_file_dir = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
+insert_file_dir_q = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
+
+insert_file_dir_d_q = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE \"{filepath}%\" AND filetype <> 'd';"
+
 
 get_link_null = "SELECT ID, filepath, points_to FROM Skittles_DB.{table_name} WHERE {table_name}_ID IS NULL AND filetype = 'l';"
 
@@ -24,6 +27,10 @@ update_link_ID = "UPDATE Skittles_DB.{table_name} SET {table_name}_ID = {ID} WHE
 get_null_broken_links = "SELECT ID, points_to, broken_link FROM Skittles_DB.{table_name} WHERE filetype = 'l' AND broken_link IS NULL;"
 
 update_broken_by_ID_list = "UPDATE Skittles_DB.{table_name} SET broken_link = {value} WHERE ID IN {ID_list};"
+
+get_links_points_to_not_absolute = "SELECT ID,filepath, points_to FROM Skittles_DB.{table_name} WHERE filetype = 'l' AND points_to NOT LIKE '/%';"
+
+update_link_points_to = "UPDATE Skittles_DB.{table_name} SET points_to = '{points_to}' WHERE ID = {ID};"
 
 update_fk_table_ID = '''
 Update Skittles_DB.{table_name} L1 
@@ -167,7 +174,7 @@ def import_data(mydb, file, table_name, listing_paths_table_name):
     # execute query
     mycursor = mydb.cursor()
     query = load_query
-    print(query)
+
     mycursor.execute(query)
     mydb.commit()
 

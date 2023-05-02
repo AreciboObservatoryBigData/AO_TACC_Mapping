@@ -108,6 +108,9 @@ def setup():
 
     insert_file_dir()
 
+    # convert points_to to absolute_paths
+    points_to_to_absolute()
+
     # Identify actual broken links
     add_broken_links()
 
@@ -281,6 +284,23 @@ def move_folder():
         return
     breakpoint()
 
+def points_to_to_absolute():
+    # Get all lines where points_to does not start with /
+    query = queries.get_links_points_to_not_absolute.format(table_name=table_names["src_listing"])
+    mycursor = mydb.cursor(dictionary=True)
+    mycursor.execute(query)
+    results = mycursor.fetchall()
+    mycursor.close()
+    for row in results:
+        # change points_to to absolute
+        absolute_path = os.path.abspath(os.path.join(row['filepath'], row['points_to']))
+        row['points_to'] = absolute_path
+        # update row
+        queries.update_link_points_to.format(table_name=table_names["src_listing"], points_to=row['points_to'], ID=row['ID'])
+        mycursor = mydb.cursor(dictionary=True)
+        mycursor.execute(query)
+        mydb.commit()
+        mycursor.close()
 
 def add_broken_links():
     print("Adding broken links")
@@ -400,10 +420,12 @@ def insert_file_dir():
         dir_ID = row[0]
         filepath = row[1]
         print(filepath)
-        if "/share/pserverd.sdb/fileserver/data/home/dserver0/pat19/hbrooks/Pictures/" in filepath:
-            breakpoint()
+
         mycursor = mydb.cursor()
-        query = queries.insert_file_dir.format(src_table_name= table_names['src_listing'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
+        if "'" in filepath:
+            query = queries.insert_file_dir_d_q.format(src_table_name= table_names['src_listing'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
+        else:
+            query = queries.insert_file_dir_q.format(src_table_name= table_names['src_listing'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
         mycursor.execute(query)
         mydb.commit()
     print("Inserting file dir relations for dst_files")
