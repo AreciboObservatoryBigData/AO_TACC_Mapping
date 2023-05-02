@@ -5,43 +5,43 @@ insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where
 
 delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
 
-select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT {table_name}_dir_ID FROM Skittles_DB.{file_dir_table_name});"
+select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT {table_name}_dir_ID FROM {file_dir_table_name});"
 
-select_file_names_no_relations = "SELECT ID, filename FROM {table_name} WHERE filetype = 'f' AND ID NOT IN(SELECT DISTINCT {table_name}_ID FROM Skittles_DB.{mapping_table_name});"
+select_file_names_no_relations = "SELECT ID, filename FROM {table_name} WHERE filetype = 'f' AND ID NOT IN(SELECT DISTINCT {table_name}_ID FROM {mapping_table_name});"
 
-insert_mapping_filename = "INSERT INTO Skittles_DB.{mapping_table_name} ({src_table_name}_ID, {dst_table_name}_ID) SELECT '{src_ID}' as '{src_table_name}_ID', ID  FROM Skittles_DB.{dst_table_name} WHERE filename = '{filename}' AND filetype = 'f';"
+insert_mapping_filename = "INSERT INTO {mapping_table_name} ({src_table_name}_ID, {dst_table_name}_ID) SELECT '{src_ID}' as '{src_table_name}_ID', ID  FROM {dst_table_name} WHERE filename = '{filename}' AND filetype = 'f';"
 
 get_dir_by_filepath = "SELECT ID, filepath FROM {table_name} WHERE filepath = '{filepath}' AND filetype = 'd';"
 
-insert_file_dir_q = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
+insert_file_dir_q = "INSERT INTO {dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM {src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
 
-insert_file_dir_d_q = "INSERT INTO Skittles_DB.{dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM Skittles_DB.{src_table_name} WHERE filepath LIKE \"{filepath}%\" AND filetype <> 'd';"
+insert_file_dir_d_q = "INSERT INTO {dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM {src_table_name} WHERE filepath LIKE \"{filepath}%\" AND filetype <> 'd';"
 
 
-get_link_null = "SELECT ID, filepath, points_to FROM Skittles_DB.{table_name} WHERE {table_name}_ID IS NULL AND filetype = 'l';"
+get_link_null = "SELECT ID, filepath, points_to FROM {table_name} WHERE {table_name}_ID IS NULL AND filetype = 'l';"
 
-get_file_by_points_to = "SELECT ID, filepath FROM Skittles_DB.{table_name} WHERE filepath = '{points_to}';"
+get_file_by_points_to = "SELECT ID, filepath FROM {table_name} WHERE filepath = '{points_to}';"
 
-update_link_ID = "UPDATE Skittles_DB.{table_name} SET {table_name}_ID = {ID} WHERE ID = {link_ID};"
+update_link_ID = "UPDATE {table_name} SET {table_name}_ID = {ID} WHERE ID = {link_ID};"
 
-get_null_broken_links = "SELECT ID, points_to, broken_link FROM Skittles_DB.{table_name} WHERE filetype = 'l' AND broken_link IS NULL;"
+get_null_broken_links = "SELECT ID, points_to, broken_link FROM {table_name} WHERE filetype = 'l' AND broken_link IS NULL;"
 
-update_broken_by_ID_list = "UPDATE Skittles_DB.{table_name} SET broken_link = {value} WHERE ID IN {ID_list};"
+update_broken_by_ID_list = "UPDATE {table_name} SET broken_link = {value} WHERE ID IN {ID_list};"
 
-get_links_points_to_not_absolute = "SELECT ID,filepath, points_to FROM Skittles_DB.{table_name} WHERE filetype = 'l' AND points_to NOT LIKE '/%';"
+get_links_points_to_not_absolute = "SELECT ID,filepath, points_to FROM {table_name} WHERE filetype = 'l' AND points_to NOT LIKE '/%';"
 
-update_link_points_to = "UPDATE Skittles_DB.{table_name} SET points_to = '{points_to}' WHERE ID = {ID};"
+update_link_points_to = "UPDATE {table_name} SET points_to = '{points_to}' WHERE ID = {ID};"
 
 update_fk_table_ID = '''
-Update Skittles_DB.{table_name} L1 
-JOIN Skittles_DB.{table_name} L2
+Update {table_name} L1 
+JOIN {table_name} L2
 ON L1.filepath = L2.points_to
 SET L2.{table_name}_ID = L1.ID
 WHERE L2.{table_name}_ID IS NULL;'''
 
 def get_ID_by_filepath(mydb, filepath, table_name):
     # Get the ID of the file just inserted
-    query = f"SELECT ID FROM Skittles_DB.{table_name} WHERE filepath = '{filepath}';"
+    query = f"SELECT ID FROM {table_name} WHERE filepath = '{filepath}';"
     mycursor = mydb.cursor()
     mycursor.execute(query)
     myresult = mycursor.fetchall()
@@ -49,7 +49,7 @@ def get_ID_by_filepath(mydb, filepath, table_name):
     return file_ID
 def delete_by_ID(mydb, ID, table_name, column_name):
     # Delete all rows in the table_name where the listing_paths_ID is the file_ID
-    query = f"DELETE FROM Skittles_DB.{table_name} WHERE {column_name} = {ID};"
+    query = f"DELETE FROM {table_name} WHERE {column_name} = {ID};"
     mycursor = mydb.cursor()
     mycursor.execute(query)
     mydb.commit()
@@ -68,25 +68,24 @@ def get_data_by_column_value(mydb, name, table_name,  column_name):
     myresult = mycursor.fetchall()
     return myresult
 
-def delete_tables_data(mydb, tables_list):
+def delete_tables_data(mydb, tables_list, database):
     # get all foreign keys
-    query = '''SELECT
+    query = f'''SELECT
   constraint_name,
   table_name,
   column_name,
   referenced_table_name,
-  referenced_column_name
+  referenced_column_name,
+  constraint_schema
 FROM
-  information_schema.key_column_usage'''
+  information_schema.key_column_usage WHERE constraint_schema = "{database}";'''
 
     mycursor = mydb.cursor()
 
     mycursor.execute(query)
     myresult = mycursor.fetchall()
-    foreign_keys= []
-    for row in myresult:
-        if 'fk' in row[0]:
-            foreign_keys.append(row)
+    foreign_keys= [row for row in myresult if "fk" in row[0]]
+    
     
     print("Dropping all foreign keys")
     # drop all foreign keys
@@ -115,7 +114,7 @@ FROM
 
 
 
-def import_data(mydb, file, table_name, listing_paths_table_name):
+def import_data(mydb, file, table_name, database):
     
     # first take the table_name and get all foreign keys
     query = f'''SELECT
@@ -123,15 +122,15 @@ def import_data(mydb, file, table_name, listing_paths_table_name):
     table_name,
     column_name,
     referenced_table_name,
-    referenced_column_name
+    referenced_column_name,
+    constraint_schema
     FROM
-    information_schema.key_column_usage where TABLE_NAME = '{table_name}' and CONSTRAINT_NAME LIKE '%fk%';'''
+    information_schema.key_column_usage where TABLE_NAME = '{table_name}' and CONSTRAINT_NAME LIKE '%fk%' and constraint_schema = "{database}";'''
 
     mycursor = mydb.cursor()
 
     mycursor.execute(query)
     fk_results = mycursor.fetchall()
-
     # Get all the table info before making changes
     query = f"DESCRIBE {table_name};"
     mycursor = mydb.cursor()
@@ -164,7 +163,7 @@ def import_data(mydb, file, table_name, listing_paths_table_name):
 
 
 
-    load_query = f'''LOAD DATA LOCAL INFILE '{file}' REPLACE INTO TABLE Skittles_DB.{table_name} 
+    load_query = f'''LOAD DATA LOCAL INFILE '{file}' REPLACE INTO TABLE {table_name} 
                     FIELDS TERMINATED BY '\\t,;'
                     LINES TERMINATED BY '\\n'
                     IGNORE 1 ROWS
@@ -181,13 +180,13 @@ def import_data(mydb, file, table_name, listing_paths_table_name):
     
 
     # Insert the file into listing_paths table
-    query = f"INSERT INTO Skittles_DB.listing_paths (filename, filepath) VALUES ('{os.path.basename(file)}','{file}');"
+    query = f"INSERT INTO listing_paths (filename, filepath) VALUES ('{os.path.basename(file)}','{file}');"
     mycursor = mydb.cursor()
     mycursor.execute(query)
     mydb.commit()
 
     # Get the ID of the file just inserted
-    query = f"SELECT ID FROM Skittles_DB.listing_paths WHERE filename = '{os.path.basename(file)}' AND filepath = '{file}';"
+    query = f"SELECT ID FROM listing_paths WHERE filename = '{os.path.basename(file)}' AND filepath = '{file}';"
     mycursor = mydb.cursor()
     mycursor.execute(query)
     myresult = mycursor.fetchall()
@@ -203,7 +202,7 @@ def import_data(mydb, file, table_name, listing_paths_table_name):
     
 
     # Get all the values in the table where the foreign key column is null and set it to the value of the file_ID
-    query = f"UPDATE Skittles_DB.{table_name} SET {fk_listing_tuple[2]} = {file_ID} WHERE {fk_listing_tuple[2]} IS NULL;"
+    query = f"UPDATE {table_name} SET {fk_listing_tuple[2]} = {file_ID} WHERE {fk_listing_tuple[2]} IS NULL;"
     mycursor = mydb.cursor()
     mycursor.execute(query)
     mydb.commit()

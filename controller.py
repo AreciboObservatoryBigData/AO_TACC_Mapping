@@ -35,13 +35,14 @@ link_info_path = os.path.join(general_files_path, 'link_info.tsv')
 destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
 source_dir_path = os.path.join(listings_path, 'Source_Listing/')
 
+database = "Skittles_DB"
 
 # connect to existing mySQL database
 mydb = mysql.connector.connect(
 host="127.0.0.1",
 user="erodrigu",
 passwd="password",
-database="Skittles_DB",
+database=database,
 allow_local_infile=True)
 
 print("Connected to database")
@@ -109,7 +110,7 @@ def setup():
     insert_file_dir()
 
     # convert points_to to absolute_paths
-    points_to_to_absolute()
+    convert_relative_to_absolute()
 
     # Identify actual broken links
     add_broken_links()
@@ -284,7 +285,8 @@ def move_folder():
         return
     breakpoint()
 
-def points_to_to_absolute():
+def convert_relative_to_absolute():
+    
     # Get all lines where points_to does not start with /
     query = queries.get_links_points_to_not_absolute.format(table_name=table_names["src_listing"])
     mycursor = mydb.cursor(dictionary=True)
@@ -296,9 +298,9 @@ def points_to_to_absolute():
         absolute_path = os.path.abspath(os.path.join(row['filepath'], row['points_to']))
         row['points_to'] = absolute_path
         # update row
-        queries.update_link_points_to.format(table_name=table_names["src_listing"], points_to=row['points_to'], ID=row['ID'])
+        update_query = queries.update_link_points_to.format(table_name=table_names["src_listing"], points_to=row['points_to'], ID=row['ID'])
         mycursor = mydb.cursor(dictionary=True)
-        mycursor.execute(query)
+        mycursor.execute(update_query)
         mydb.commit()
         mycursor.close()
 
@@ -385,7 +387,7 @@ def resolve_links_to_ID():
 
 def run_resets():
     table_list = [table_names[key] for key in table_names]
-    queries.delete_tables_data(mydb, table_list)
+    queries.delete_tables_data(mydb, table_list, database)
 
 def run_imports():
     # Move all files in the finished folder to the root folder
@@ -461,6 +463,6 @@ def import_data(dir_path, table_name):
     
     for file in files:
         print(f"Importing file: {file}")
-        queries.import_data(mydb, file, table_name, table_names["listing_paths"])  
+        queries.import_data(mydb, file, table_name, database)  
 
 main()
