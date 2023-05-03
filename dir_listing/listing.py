@@ -24,11 +24,6 @@ link_path = "../file_listings/Source_Listing"
 
 blacklist_path = "blacklist.txt"
 
-# import the blacklist
-blacklist = []
-with open(blacklist_path, "rb") as f:
-    blacklist = f.readlines()
-
 
 
 
@@ -95,7 +90,6 @@ def main():
                 glob_filepath  = glob.glob(file_path_pattern_w)
 
             if len(glob_filepath) > 1:
-                breakpoint()
                 print("ERROR! FOUND MORE THAN ONE RESULT FOR THE PATTERN")
                 print(file_path_pattern_q)
                 print(file_path_pattern_w)
