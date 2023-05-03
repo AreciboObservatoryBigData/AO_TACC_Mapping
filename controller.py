@@ -441,7 +441,13 @@ def insert_file_dir():
         dir_ID = row[0]
         print(filepath)
         mycursor = mydb.cursor()
-        query = queries.insert_file_dir.format(src_table_name= table_names['dst_listing'],dst_table_name=table_names["dst_file_dir"], filepath=filepath, dir_ID=dir_ID)
+
+        if "'" in filepath:
+            query = queries.insert_file_dir_d_q.format(src_table_name= table_names['dst_listing'],dst_table_name=table_names["dst_file_dir"], filepath=filepath, dir_ID=dir_ID)
+        else:
+            query = queries.insert_file_dir_q.format(src_table_name= table_names['dst_listing'],dst_table_name=table_names["dst_file_dir"], filepath=filepath, dir_ID=dir_ID)
+
+
 
         mycursor.execute(query)
         mydb.commit()
