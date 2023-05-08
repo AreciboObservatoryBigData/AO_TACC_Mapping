@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import time
 import pandas as pd
+import multiprocessing as mp
 
 dir_listing_path = 'dir_listing/'
 
@@ -38,12 +39,19 @@ source_dir_path = os.path.join(listings_path, 'Source_Listing/')
 database = "Skittles_DB"
 
 # connect to existing mySQL database
+db_connection_info = {
+    "host": "127.0.0.1",
+    "user": "erodrigu",
+    "passwd": "password",
+    "database": database,
+    "allow_local_infile": True
+}
 mydb = mysql.connector.connect(
-host="127.0.0.1",
-user="erodrigu",
-passwd="password",
-database=database,
-allow_local_infile=True)
+host=db_connection_info["host"],
+user=db_connection_info["user"],
+passwd=db_connection_info["passwd"],
+database=db_connection_info["database"],
+allow_local_infile=db_connection_info["allow_local_infile"])
 
 print("Connected to database")
 
@@ -68,20 +76,20 @@ def main():
         "options": [
             "Quit",
             "Run setup",
+            "Gererate Report",
             "Import new files",
             "Delete file contents from sql table",
             "Create Mapping",
-            "Resolve links to ID",
             "Move Folder",
             
         ],
         "functions": [
             quit,
             setup,
+            generate_report,
             insert_new_files,
             delete_file_sql_contents,
             create_mapping,
-            resolve_links_to_ID,
             move_folder,
 
             
@@ -119,28 +127,65 @@ def setup():
     resolve_links_to_ID()
 
     # move files to finished folder
-    files = glob.glob(os.path.join(source_dir_path, '*.tsv'))
+    files = glob.glob(os.path.join(source_dir_path, '*.txt'))
     for file in files:
         shutil.move(file, os.path.join(source_dir_path, "finished"))
 
-    files = glob.glob(os.path.join(destination_dir_path, '*.tsv'))
+    files = glob.glob(os.path.join(destination_dir_path, '*.txt'))
     for file in files:
         shutil.move(file, os.path.join(destination_dir_path, "finished"))
     
-    
+def generate_report():
+    print("--------Generate Report--------")
+    def end_loop():
+        
+        return True
+
+    def dirs_missing_report():
+        # get 10 rows of missing_dirs
+        query = queries.get_missing_included_files.format(table_name = table_names["src_listing"])
+        mycursor = mydb.cursor(dictionary=True)
+        mycursor.execute(query)
+        myresult = mycursor.fetchall()
+        mycursor.close()
+
+        # turn dictionary to dataframe
+        df = pd.DataFrame(myresult)
+        print(df)
+
+        return False
+
+
+
+    options = [[
+        "Back to Main Menu",
+        "Get src dirs missing, using points_to"
+    ],
+    [
+        end_loop,
+        dirs_missing_report
+    ]
+    ]   
+    finished = False
+    while not finished: 
+        option = menus.get_option_main(options[0])
+        finished = options[1][option]()
+
+
 
 
 def insert_new_files():
     print("Inserting new source files")
     # get only files not in finished folder
-    pattern = '.tsv'
+    pattern = '.txt'
     files = [os.path.join(source_dir_path,filename) for filename in os.listdir(source_dir_path) if filename.endswith(pattern)]
 
     import_data(source_dir_path, table_names["src_listing"])
 
     import_data(destination_dir_path, table_names["dst_listing"])
-    
-    insert_file_dir()
+
+     # convert points_to to absolute_paths
+    convert_relative_to_absolute()
 
     # Identify actual broken links
     add_broken_links()
@@ -178,7 +223,7 @@ def delete_file_sql_contents():
     
     # get finished files
     finished_dir = os.path.join(check_dir, "finished")
-    files = glob.glob(os.path.join(finished_dir, '*.tsv'))
+    files = glob.glob(os.path.join(finished_dir, '*.txt'))
 
     # check which file to delete
     try:
@@ -220,32 +265,7 @@ def create_mapping():
         mycursor.execute(query)
         mydb.commit()
 
-def resolve_links_to_ID():
 
-    tables = [table_names["src_listing"], table_names["dst_listing"]]
-
-    for table in tables:
-        # Get all links that do not have a value in src_listing _ID
-        query = queries.get_link_null.format(table_name=table)
-        mycursor = mydb.cursor(dictionary=True)
-        mycursor.execute(query)
-        myresult = mycursor.fetchall()
-
-        # For each link, Insert the ID of the file it links to into the src_listing table
-        for row in myresult:
-            # get all files in listing that match the points_to value
-            query = queries.get_file_by_points_to.format(table_name=table, points_to=row["points_to"])
-            mycursor = mydb.cursor(dictionary=True)
-            mycursor.execute(query)
-            myresult = mycursor.fetchall()
-            mycursor.close()
-            # if there is only one file, insert the ID into the src_listing table
-            if len(myresult) == 1:
-                query = queries.update_link_ID.format(table_name=table, ID=myresult[0]["ID"], link_ID=row["ID"])
-                mycursor = mydb.cursor()
-                mycursor.execute(query)
-                mydb.commit()
-                mycursor.close()
 
 def move_folder():
     # Ask src or dst
@@ -390,21 +410,24 @@ def run_resets():
     queries.delete_tables_data(mydb, table_list, database)
 
 def run_imports():
-    # Move all files in the finished folder to the root folder
-    files = glob.glob(os.path.join(source_dir_path, "finished", '*.tsv'))
-    for file in files:
-        shutil.move(file, source_dir_path)
-    start_time = time.time()
-    import_data(source_dir_path, table_names["src_listing"])
-    print("Imported source files in {} seconds".format(time.time() - start_time))
-    # Move all files in the finished folder to the root folder
-    files = glob.glob(os.path.join(destination_dir_path, "finished", '*.tsv'))
+    # # Move all files in the finished folder to the root folder
+    # files = glob.glob(os.path.join(source_dir_path, "finished", '*.txt'))
+    # for file in files:
+    #     shutil.move(file, source_dir_path)
+    # start_time = time.time()
+    # import_data(source_dir_path, table_names["src_listing"])
+    # print("Imported source files in {} seconds".format(time.time() - start_time))
+
+
+    # Move all destination files in the finished folder to the root folder
+    files = glob.glob(os.path.join(destination_dir_path, "finished", '*.txt'))
     for file in files:
         shutil.move(file, destination_dir_path)
 
     start_time = time.time()    
     import_data(destination_dir_path, table_names["dst_listing"])
     print("Imported destination files in {} seconds".format(time.time() - start_time))
+    quit()
 
 
 
@@ -458,17 +481,49 @@ def insert_file_dir():
 
 
 def import_data(dir_path, table_name):
+
     pattern = '.txt'
-    files = [os.path.join(dir_path,filename) for filename in os.listdir(dir_path) if filename.endswith(pattern)]
+    files = [os.path.join(dir_path, filename) for filename in os.listdir(dir_path) if filename.endswith(pattern)]
 
     if len(files) == 0:
         print(f"No files found in {dir_path}")
         return
-    print(f"Importing {dir_path} files")
-     # get only files not in finished folder
     
-    for file in files:
-        print(f"Importing file: {file}")
-        queries.import_data(mydb, file, table_name, database)  
+    print(f"Importing {dir_path} files")
+    # get only files not in finished folder
+    # ...
+    results = queries.prepare_table_import(mydb, table_name, db_connection_info)
+    fk_results = results[0]
+    fk_info = results[1]
+    
+    # print files
+    [print(file) for file in files]
+    # run in parallel
+    arguments = [(db_connection_info, file, table_name, fk_results) for file in files]
+    with mp.Pool() as pool:
+        pool.starmap(queries.import_data, arguments)
+    
+    queries.finalize_table_import(mydb, fk_info, table_name)
+
+
+
+    # pattern = '.txt'
+    # files = [os.path.join(dir_path,filename) for filename in os.listdir(dir_path) if filename.endswith(pattern)]
+
+    # if len(files) == 0:
+    #     print(f"No files found in {dir_path}")
+    #     return
+    # print(f"Importing {dir_path} files")
+    #  # get only files not in finished folder
+    
+    # # run in parallel
+    # arguments = []
+    # for file in files:
+    #     print(f"Importing file: {file}")
+    #     queries.import_data(mydb, file, table_name, database) 
+    # #     arguments.append((mydb, file, table_name, database))
+         
+    # # with mp.Pool() as pool:
+    # #     pool.starmap(queries.import_data, arguments)
 
 main()

@@ -34,6 +34,24 @@ def main():
         output_file_path = os.path.join(output_listing_dir_path, row[0].replace('/', '_')) + ".txt"
         # if file not found, run listing script
         if os.path.exists(output_file_path):
+            # Do the link thing
+            files = os.listdir(link_path)
+            files = [os.path.basename(file) for file in files]
+            # Take away finished and readmes
+            files.remove("finished")
+            files = [file for file in files if not file.endswith(".md")]
+
+            # get all files in finished dir
+            finished_files = os.listdir(os.path.join(link_path, "finished"))
+            finished_files = [os.path.basename(file) for file in finished_files]
+
+            # extend files with finished files
+            files.extend(finished_files)
+            
+            # create soft link if not already created
+            if not os.path.basename(output_file_path) in files:
+                command = "ln -s "+os.path.abspath(output_file_path)+" "+link_path
+                os.system(command)
             continue
         # run listing script
         # command = f"./listing.sh {row[0]} {output_file_path}"
@@ -101,7 +119,7 @@ def main():
 
             # replace each special charater with \(int_value)
 
-            new_filepath = "".join([char if char in string.printable else ";("+ord(char)+")" for char in filepath ])
+            new_filepath = "".join([char if char in string.printable else ";("+str(ord(char))+")" for char in filepath ])
 
             # change the values in split_b_line
             split_b_line[1] = new_filepath.encode()

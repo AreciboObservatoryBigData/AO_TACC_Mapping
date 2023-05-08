@@ -1,5 +1,5 @@
 import os
-
+import mysql.connector
 
 insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where filetype = '{type}';"
 
@@ -31,6 +31,8 @@ update_broken_by_ID_list = "UPDATE {table_name} SET broken_link = {value} WHERE 
 get_links_points_to_not_absolute = "SELECT ID,filepath, points_to FROM {table_name} WHERE filetype = 'l' AND points_to NOT LIKE '/%';"
 
 update_link_points_to = "UPDATE {table_name} SET points_to = '{points_to}' WHERE ID = {ID};"
+
+get_missing_included_files = "SELECT * FROM {table_name} where filetype = 'l' and {table_name}_ID is null and broken_link = 0 LIMIT 10;"
 
 update_fk_table_ID = '''
 Update {table_name} L1 
@@ -114,9 +116,9 @@ FROM
 
 
 
-def import_data(mydb, file, table_name, database):
-    
-    # first take the table_name and get all foreign keys
+def prepare_table_import(mydb, table_name, db_connection_info):
+    database = db_connection_info["database"]
+     # first take the table_name and get all foreign keys
     query = f'''SELECT
     constraint_name,
     table_name,
@@ -156,10 +158,16 @@ def import_data(mydb, file, table_name, database):
         query = f"ALTER TABLE {table_name} MODIFY {column_name} {fk_type} NULL;"
         mycursor = mydb.cursor()
         mycursor.execute(query)
-        
+    return [fk_results, fk_info]
 
 
-        
+def import_data(db_connection_info, file, table_name, fk_results):
+    mydb = mysql.connector.connect(
+    host=db_connection_info["host"],
+    user=db_connection_info["user"],
+    passwd=db_connection_info["passwd"],
+    database=db_connection_info["database"],
+    allow_local_infile=db_connection_info["allow_local_infile"])
 
 
 
@@ -167,7 +175,8 @@ def import_data(mydb, file, table_name, database):
                     FIELDS TERMINATED BY '\\t,;'
                     LINES TERMINATED BY '\\n'
                     IGNORE 1 ROWS
-                    (filename, filepath, filetype, filesize,fileAtime,fileMtime,fileCtime,points_to);
+                    (filename, filepath, filetype, filesize,fileAtime,fileMtime,fileCtime,points_to)
+                    SET listing_path = {os.path.basename(file)};
                     '''
 
     # execute query
@@ -207,6 +216,9 @@ def import_data(mydb, file, table_name, database):
     mycursor.execute(query)
     mydb.commit()
 
+    
+
+def finalize_table_import(mydb, fk_info, table_name):
     # set all keys back to their original values
     for row in fk_info:
         query = f"ALTER TABLE {table_name} MODIFY {row[0]} {row[1]} {row[2]};"
