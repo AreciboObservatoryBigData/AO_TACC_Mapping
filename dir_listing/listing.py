@@ -74,7 +74,7 @@ def main():
                 continue
 
             # if line cant decode, then run code to add replacement
-            # if there's a \t on the filname or filepath, run code to add replacement
+            # if there's a \t on the filename or filepath, run code to add replacement
 
             decodeable, make_replacement_bool = check_if_replacement(i,b_line)
 
@@ -120,6 +120,9 @@ def main():
             # replace each special charater with \(int_value)
 
             new_filepath = "".join([char if char in string.printable else ";("+str(ord(char))+")" for char in filepath ])
+
+            # do the same for \r
+            new_filepath = new_filepath.replace("\r", ";(" + str(ord("\r")) + ")")
 
             # change the values in split_b_line
             split_b_line[1] = new_filepath.encode()

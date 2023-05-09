@@ -65,8 +65,6 @@ table_names = {
     "dst_listing": "dst_listing",
     "dst_file_dir": "dst_file_dir_relations",
 
-    "listing_paths": "listing_paths",
-    "mapping": "src_dst_mapping"
 }
 ################
 

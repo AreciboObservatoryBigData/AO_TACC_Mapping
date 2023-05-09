@@ -170,13 +170,12 @@ def import_data(db_connection_info, file, table_name, fk_results):
     allow_local_infile=db_connection_info["allow_local_infile"])
 
 
-
     load_query = f'''LOAD DATA LOCAL INFILE '{file}' REPLACE INTO TABLE {table_name} 
                     FIELDS TERMINATED BY '\\t,;'
                     LINES TERMINATED BY '\\n'
                     IGNORE 1 ROWS
                     (filename, filepath, filetype, filesize,fileAtime,fileMtime,fileCtime,points_to)
-                    SET listing_path = {os.path.basename(file)};
+                    SET listing_path = "{os.path.basename(file)}";
                     '''
 
     # execute query
@@ -187,35 +186,6 @@ def import_data(db_connection_info, file, table_name, fk_results):
     mydb.commit()
 
     
-
-    # Insert the file into listing_paths table
-    query = f"INSERT INTO listing_paths (filename, filepath) VALUES ('{os.path.basename(file)}','{file}');"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    mydb.commit()
-
-    # Get the ID of the file just inserted
-    query = f"SELECT ID FROM listing_paths WHERE filename = '{os.path.basename(file)}' AND filepath = '{file}';"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    myresult = mycursor.fetchall()
-    file_ID = myresult[0][0]
-
-    # get index of foreign key that references listing_paths
-    i = 0
-    for row in fk_results:
-        if row[3] == 'listing_paths':
-            break
-        i += 1
-    fk_listing_tuple = fk_results[i]
-    
-
-    # Get all the values in the table where the foreign key column is null and set it to the value of the file_ID
-    query = f"UPDATE {table_name} SET {fk_listing_tuple[2]} = {file_ID} WHERE {fk_listing_tuple[2]} IS NULL;"
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    mydb.commit()
-
     
 
 def finalize_table_import(mydb, fk_info, table_name):
