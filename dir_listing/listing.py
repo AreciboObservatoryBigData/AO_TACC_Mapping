@@ -41,16 +41,18 @@ def main():
         # Get what the oputput_dir_path would be
         output_dir_path = os.path.join(output_listing_dir_path, row[0].replace('/', '_'))
 
+        
+
 
         # if run_find is true, then run the find command
-        if run_find == True and not os.path.exists(output_file_path):
+        if run_find == True and not os.path.exists(output_dir_path):
             # run listing script
             # command = f"./listing.sh {row[0]} {output_file_path}"
             command = "./listing.sh " + row[0] + " " + output_file_path
             os.system(command)
         
 
-        if replace_special_characters and not os.path.exists(output_file_path):
+        if replace_special_characters and not os.path.exists(output_file_path) and run_find == True:
             print("Replacing special characters in file: " + output_file_path)
             # Replace all lines that don't decode with the correct line or contain a control character
             # Steps: 
@@ -213,6 +215,7 @@ def has_control_characters(input_string):
     return False
 
 def split_file(listing_file_path, lines_per_file):
+    global leave_original_files
     
     filename = os.path.basename(listing_file_path)
     
@@ -277,7 +280,8 @@ def add_links(output_file_path):
     links_path_split_file_dir = os.path.join(link_path, os.path.basename(output_file_path).split('.')[0])
     # if exists, remove it
     if os.path.exists(links_path_split_file_dir):
-        os.rmdir(links_path_split_file_dir)
+        command = "rm -r " + links_path_split_file_dir
+        os.system(command)
     
     # check in the finished directory
     links_path_split_file_finished_dir = os.path.join(link_path, "finished", os.path.basename(output_file_path).split('.')[0])
