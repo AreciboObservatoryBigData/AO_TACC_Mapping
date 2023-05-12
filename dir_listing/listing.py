@@ -29,7 +29,7 @@ run_find = True
 replace_special_characters = True
 split_files_bool = True
 add_links_bool = True
-leave_original_files = True
+leave_original_files = False
 
 
 
@@ -50,9 +50,9 @@ def main():
             # command = f"./listing.sh {row[0]} {output_file_path}"
             command = "./listing.sh " + row[0] + " " + output_file_path
             os.system(command)
-        
 
-        if replace_special_characters and not os.path.exists(output_file_path) and run_find == True:
+
+        if replace_special_characters and not os.path.exists(output_dir_path) and run_find == True:
             print("Replacing special characters in file: " + output_file_path)
             # Replace all lines that don't decode with the correct line or contain a control character
             # Steps: 
@@ -172,7 +172,7 @@ def main():
                 # rename backup file to original file
                 os.rename(backup_file_path, output_file_path)
 
-        if split_files_bool:
+        if split_files_bool and not os.path.exists(output_dir_path) and run_find == True and replace_special_characters == True:
             print("Splitting file: " + output_file_path)
             split_file(output_file_path, lines_per_split_file)
 
@@ -271,36 +271,29 @@ def split_file(listing_file_path, lines_per_file):
         os.remove(listing_file_path)
 
 def add_links(output_file_path):
+    
+
+
     global link_path
-    # Get all files created by split_file
-    # Get the directory created by split_file
-    split_file_output_dir = os.path.join(os.path.dirname(output_file_path), os.path.basename(output_file_path).split('.')[0])
+    # link whole directory
+    # get the directory name
+    dir_name = os.path.basename(output_file_path).split('.')[0]
+    # get the directory path
+    dir_path = os.path.dirname(output_file_path)
+    # get the link path
+    output_link_path = os.path.join(link_path, dir_name)
 
-    # check if the directory has been made in the links_path
-    links_path_split_file_dir = os.path.join(link_path, os.path.basename(output_file_path).split('.')[0])
-    # if exists, remove it
-    if os.path.exists(links_path_split_file_dir):
-        command = "rm -r " + links_path_split_file_dir
-        os.system(command)
+    source_path = os.path.abspath(os.path.join(dir_path, dir_name))
+
+    # if link exists, do nothing
+    if os.path.exists(output_link_path):
+        return
     
-    # check in the finished directory
-    links_path_split_file_finished_dir = os.path.join(link_path, "finished", os.path.basename(output_file_path).split('.')[0])
-    # if exists, remove it
-    if os.path.exists(links_path_split_file_finished_dir):
-        os.rmdir(links_path_split_file_finished_dir)
-    
-    # create the directory in the links_path
-    os.mkdir(links_path_split_file_dir)
-
-    # Get all files in the split_file_output_dir
-    split_file_output_files = glob.glob(os.path.join(split_file_output_dir, "*"))
-
-    # Change the items to absolute paths
-    split_file_output_files = [os.path.abspath(file) for file in split_file_output_files]
-
-    # Create the links in the links_path_split_file_dir
-    for file in split_file_output_files:
-        os.symlink(file, os.path.join(links_path_split_file_dir, os.path.basename(file)))
+    # or if the path exists in the "finished" directory, do nothing
+    if os.path.exists(os.path.join(link_path, "finished", dir_name)):
+        return
+    # create link
+    os.symlink(source_path, output_link_path)
 
 
 main()
