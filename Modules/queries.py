@@ -3,9 +3,11 @@ import mysql.connector
 
 insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where filetype = '{type}';"
 
+insert_listing_path_filename = "INSERT INTO {table_name} (filename,src_dst) VALUES ('{filename}',{src_dst})"
+
 delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
 
-select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT {table_name}_dir_ID FROM {file_dir_table_name});"
+select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT listing_dir_ID FROM {file_dir_table_name});"
 
 select_file_names_no_relations = "SELECT ID, filename FROM {table_name} WHERE filetype = 'f' AND ID NOT IN(SELECT DISTINCT {table_name}_ID FROM {mapping_table_name});"
 
@@ -13,10 +15,17 @@ insert_mapping_filename = "INSERT INTO {mapping_table_name} ({src_table_name}_ID
 
 get_dir_by_filepath = "SELECT ID, filepath FROM {table_name} WHERE filepath = '{filepath}' AND filetype = 'd';"
 
-insert_file_dir_q = "INSERT INTO {dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM {src_table_name} WHERE filepath LIKE '{filepath}%' AND filetype <> 'd';"
+insert_file_dir = '''
+INSERT INTO {file_dir_relations_table_name} (listing_dir_ID, listing_file_ID)
+SELECT dir_info.ID, file_info.ID 
+FROM (
+    SELECT ID, filepath
+    FROM {table_name}
+    WHERE filetype = 'd' AND NOT ID IN ( SELECT DISTINCT listing_dir_ID FROM {file_dir_relations_table_name})
+) AS dir_info
+JOIN {table_name} AS file_info ON file_info.filepath LIKE CONCAT(dir_info.filepath, "%") AND dir_info.ID <> file_info.ID;
 
-insert_file_dir_d_q = "INSERT INTO {dst_table_name} ({src_table_name}_dir_ID, {src_table_name}_ID) SELECT '{dir_ID}' as 'dir_ID', ID  FROM {src_table_name} WHERE filepath LIKE \"{filepath}%\" AND filetype <> 'd';"
-
+'''
 
 get_link_null = "SELECT ID, filepath, points_to FROM {table_name} WHERE {table_name}_ID IS NULL AND filetype = 'l';"
 
@@ -133,6 +142,32 @@ def prepare_table_import(mydb, table_name, db_connection_info):
 
     mycursor.execute(query)
     fk_results = mycursor.fetchall()
+
+
+    # Do INDEX WORK
+    #############################################
+    print("Dropping all indexes")
+    # get all indexes for the table
+    query = f"SHOW INDEX FROM {table_name};"
+    mycursor = mydb.cursor(dictionary=True)
+    mycursor.execute(query)
+    index_results = mycursor.fetchall()
+    # filter out primary key
+    index_results = [x for x in index_results if x['Key_name'] != 'PRIMARY']
+
+    # Filter out fk's
+    index_results = [x for x in index_results if 'fk' not in x['Key_name']]
+
+    # Take away indexes
+    # Example: DROP INDEX index_name ON table_name;
+    for index in index_results:
+        query = f"DROP INDEX {index['Key_name']} ON {table_name};"
+        mycursor = mydb.cursor()
+        mycursor.execute(query)
+
+    #############################################
+    
+
     # Get all the table info before making changes
     query = f"DESCRIBE {table_name};"
     mycursor = mydb.cursor()
@@ -141,6 +176,7 @@ def prepare_table_import(mydb, table_name, db_connection_info):
 
     # set all keys to the possibility of null
     fk_info = []
+    print("Setting all keys to NULL")
     for row in fk_results:
         column_name = row[2]
         # get the type of the column
@@ -158,10 +194,11 @@ def prepare_table_import(mydb, table_name, db_connection_info):
         query = f"ALTER TABLE {table_name} MODIFY {column_name} {fk_type} NULL;"
         mycursor = mydb.cursor()
         mycursor.execute(query)
-    return [fk_results, fk_info]
+    
+    return [fk_results, fk_info,index_results]
 
 
-def import_data(db_connection_info, file, table_name, fk_results):
+def import_data(db_connection_info, file, table_name, listing_path_ID):
     mydb = mysql.connector.connect(
     host=db_connection_info["host"],
     user=db_connection_info["user"],
@@ -175,7 +212,7 @@ def import_data(db_connection_info, file, table_name, fk_results):
                     LINES TERMINATED BY '\\n'
                     IGNORE 1 ROWS
                     (filename, filepath, filetype, filesize,fileAtime,fileMtime,fileCtime,points_to)
-                    SET listing_path = "{os.path.basename(file)}";
+                    SET listing_paths_ID = {listing_path_ID};
                     '''
 
     # execute query
@@ -188,11 +225,21 @@ def import_data(db_connection_info, file, table_name, fk_results):
     
     
 
-def finalize_table_import(mydb, fk_info, table_name):
+def finalize_table_import(mydb, fk_info, table_name, index_results):
+    print("Re-establishing Foreign Keys")
     # set all keys back to their original values
     for row in fk_info:
         query = f"ALTER TABLE {table_name} MODIFY {row[0]} {row[1]} {row[2]};"
         mycursor = mydb.cursor()
         mycursor.execute(query)
+    
+    # re-establish indexes
+    print("Re-establishing Indexes")
+    for index in index_results:
+        query = f"CREATE INDEX {index['Key_name']} ON {table_name} ({index['Column_name']});"
+        mycursor = mydb.cursor()
+        mycursor.execute(query)
+        
+
 
    

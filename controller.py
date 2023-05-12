@@ -1,4 +1,4 @@
-#!/usr/bin/python3.7
+
 # Software to import data from a csv or txt file into a mySQL table and compare the tables to check for missing files.
 # Emanuel Rodriguez
 # 2023-03-23
@@ -41,8 +41,8 @@ database = "Skittles_DB"
 # connect to existing mySQL database
 db_connection_info = {
     "host": "127.0.0.1",
-    "user": "erodrigu",
-    "passwd": "password",
+    "user": "bigdata",
+    "passwd": "59CUkBH@tvUpp@5Z",
     "database": database,
     "allow_local_infile": True
 }
@@ -64,6 +64,7 @@ table_names = {
 
     "dst_listing": "dst_listing",
     "dst_file_dir": "dst_file_dir_relations",
+    "listing_paths": "listing_paths"
 
 }
 ################
@@ -104,16 +105,22 @@ def main():
 
 def setup():
 
+    print("Running listing scripts")
     # Run listing scripts in transport
     command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(dir_listing_path)}; python3.7 listing.py'"
     os.system(command)
+    print("Finished running listing scripts")
     
     run_resets()
+    input("Resets finished, please press enter to continue")
     run_imports()
     
 
-
-    insert_file_dir()
+    start_time = time.time()
+    run_insert_file_dir()
+    end_time = time.time()
+    print("Finished inserting file dir relations in {} seconds".format(end_time - start_time))
+    quit()
 
     # convert points_to to absolute_paths
     convert_relative_to_absolute()
@@ -178,9 +185,9 @@ def insert_new_files():
     pattern = '.txt'
     files = [os.path.join(source_dir_path,filename) for filename in os.listdir(source_dir_path) if filename.endswith(pattern)]
 
-    import_data(source_dir_path, table_names["src_listing"])
+    import_data(source_dir_path, table_names["src_listing"],0)
 
-    import_data(destination_dir_path, table_names["dst_listing"])
+    import_data(destination_dir_path, table_names["dst_listing"],1)
 
      # convert points_to to absolute_paths
     convert_relative_to_absolute()
@@ -274,7 +281,7 @@ def move_folder():
     ]
     print("-----------MOVE FOLDER-----------")
     option = menus.get_option_main(options)
-
+    table_name = ""
     if option == 0:
         return
     elif option == 1:
@@ -304,7 +311,7 @@ def move_folder():
     breakpoint()
 
 def convert_relative_to_absolute():
-    
+    print("Converting points_to to absolute paths")
     # Get all lines where points_to does not start with /
     query = queries.get_links_points_to_not_absolute.format(table_name=table_names["src_listing"])
     mycursor = mydb.cursor(dictionary=True)
@@ -312,6 +319,8 @@ def convert_relative_to_absolute():
     results = mycursor.fetchall()
     mycursor.close()
     for row in results:
+        # So that pylance doesn't complain
+        row = dict(row)
         # change points_to to absolute
         absolute_path = os.path.abspath(os.path.join(row['filepath'], row['points_to']))
         row['points_to'] = absolute_path
@@ -408,120 +417,151 @@ def run_resets():
     queries.delete_tables_data(mydb, table_list, database)
 
 def run_imports():
-    # # Move all files in the finished folder to the root folder
-    # files = glob.glob(os.path.join(source_dir_path, "finished", '*.txt'))
-    # for file in files:
-    #     shutil.move(file, source_dir_path)
-    # start_time = time.time()
-    # import_data(source_dir_path, table_names["src_listing"])
-    # print("Imported source files in {} seconds".format(time.time() - start_time))
-
-
-    # Move all destination files in the finished folder to the root folder
-    files = glob.glob(os.path.join(destination_dir_path, "finished", '*.txt'))
-    for file in files:
-        shutil.move(file, destination_dir_path)
-
-    start_time = time.time()    
-    import_data(destination_dir_path, table_names["dst_listing"])
-    print("Imported destination files in {} seconds".format(time.time() - start_time))
-    quit()
-
-
-
-def insert_file_dir():
-        
-    print("Inserting file dir relations for src_files")
-    # loop through results of query
-    mycursor = mydb.cursor()
-    query = queries.select_dir_names_no_relations.format(table_name=table_names["src_listing"], file_dir_table_name=table_names["src_file_dir"])
+# Move all destination listing_dirs in the finished folder to the root folder
+    finished_listing_dirs = get_listing_dirs(os.path.join(source_dir_path, "finished"))
     
+    for directory in finished_listing_dirs:
+        command = f"mv {directory} {destination_dir_path}"
+        os.system(command)
+        
+    # Move all destination listing_dirs in the finished folder to the root folder
+    finished_listing_dirs = get_listing_dirs(os.path.join(destination_dir_path, "finished"))
+    
+    for directory in finished_listing_dirs:
+        command = f"mv {directory} {destination_dir_path}"
+        os.system(command)
+   
+    args = [
+        (source_dir_path, table_names["src_listing"], 0),
+        (destination_dir_path, table_names["dst_listing"], 1)
+    ]
+    submitInParallel(import_data, args)
+    
+
+
+
+
+
+def run_insert_file_dir():
+
+    # submit in parallel
+    args = [
+        (table_names["src_listing"], table_names["src_file_dir"]),
+        (table_names["dst_listing"], table_names["dst_file_dir"])
+    ]
+    submitInParallel(insert_file_dir, args)
+        
+
+def insert_file_dir(table_name, file_dir_table_name):
+    print(f"Inserting file dir relations for {table_name}")
+
+    query = queries.insert_file_dir.format(table_name=table_name, file_dir_relations_table_name=file_dir_table_name)
+    
+    executeQuery(query)
+    print(f"Finished inserting file dir relations for {table_name}")
+
+
+
+
+
+def executeQuery(query):
+    global db_connection_info
+    new_mydb = mysql.connector.connect(
+    host=db_connection_info["host"],
+    user=db_connection_info["user"],
+    passwd=db_connection_info["passwd"],
+    database=db_connection_info["database"],
+    allow_local_infile=db_connection_info["allow_local_infile"])
+
+    mycursor = new_mydb.cursor()
     mycursor.execute(query)
-    myresult = mycursor.fetchall()
-    for row in myresult:
-        # insert filepath in table
-        dir_ID = row[0]
-        filepath = row[1]
-        print(filepath)
+    mycursor.close()
+    new_mydb.commit()
+    
+    return mycursor
 
-        mycursor = mydb.cursor()
-        if "'" in filepath:
-            query = queries.insert_file_dir_d_q.format(src_table_name= table_names['src_listing'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
-        else:
-            query = queries.insert_file_dir_q.format(src_table_name= table_names['src_listing'],dst_table_name=table_names["src_file_dir"], filepath=filepath, dir_ID=dir_ID)
-        mycursor.execute(query)
-        mydb.commit()
-    print("Inserting file dir relations for dst_files")
-    mycursor = mydb.cursor()
-    query = queries.select_dir_names_no_relations.format(table_name=table_names["dst_listing"], file_dir_table_name=table_names["dst_file_dir"])
-    mycursor.execute(query)
-    myresult = mycursor.fetchall()
-    for row in myresult:
-        # insert filepath in table
-        filepath = row[1]
-        dir_ID = row[0]
-        print(filepath)
-        mycursor = mydb.cursor()
+def import_data(dir_path, table_name, src_dst):
 
-        if "'" in filepath:
-            query = queries.insert_file_dir_d_q.format(src_table_name= table_names['dst_listing'],dst_table_name=table_names["dst_file_dir"], filepath=filepath, dir_ID=dir_ID)
-        else:
-            query = queries.insert_file_dir_q.format(src_table_name= table_names['dst_listing'],dst_table_name=table_names["dst_file_dir"], filepath=filepath, dir_ID=dir_ID)
+    # make new my_db connection
+    global db_connection_info
+    new_mydb = mysql.connector.connect(
+    host=db_connection_info["host"],
+    user=db_connection_info["user"],
+    passwd=db_connection_info["passwd"],
+    database=db_connection_info["database"],
+    allow_local_infile=db_connection_info["allow_local_infile"])
+
+    total_start_time = time.time()
+    print(f"Importing data for {table_name}")
+    listing_dirs = get_listing_dirs(dir_path)
+
+    # get all the files in each directory
+    files = []
+    for dir in listing_dirs:
+        files += glob.glob(os.path.join(dir, '*.txt'))
 
 
-
-        mycursor.execute(query)
-        mydb.commit()
-    print("Finished inserting file dir relations")
-
-
-
-
-
-def import_data(dir_path, table_name):
-
-    pattern = '.txt'
-    files = [os.path.join(dir_path, filename) for filename in os.listdir(dir_path) if filename.endswith(pattern)]
-
-    if len(files) == 0:
-        print(f"No files found in {dir_path}")
+    if len(listing_dirs) == 0:
+        print(f"No listing_dirs {dir_path}")
         return
     
     print(f"Importing {dir_path} files")
     # get only files not in finished folder
     # ...
-    results = queries.prepare_table_import(mydb, table_name, db_connection_info)
-    fk_results = results[0]
+    results = queries.prepare_table_import(new_mydb, table_name, db_connection_info)
     fk_info = results[1]
-    
-    # print files
-    [print(file) for file in files]
+
+    index_results = results[2]
+
+    # do all things that need to be done file by file
+    # insert the listing_paths
+    listing_file_IDs = []
+    for file in files:
+        print(file)
+        filename = os.path.basename(file)
+        query = queries.insert_listing_path_filename.format(table_name=table_names["listing_paths"], filename=filename, src_dst=src_dst)
+        mycursor = new_mydb.cursor()
+        mycursor.execute(query)
+        new_mydb.commit()
+        listing_file_IDs.append(mycursor.lastrowid)
+
+    start_time = time.time()
     # run in parallel
-    arguments = [(db_connection_info, file, table_name, fk_results) for file in files]
+    arguments = [(db_connection_info, file, table_name, listing_file_IDs[i]) for i, file in enumerate(files)]
     with mp.Pool() as pool:
         pool.starmap(queries.import_data, arguments)
     
-    queries.finalize_table_import(mydb, fk_info, table_name)
 
+    print(f"Imported data for {dir_path} in {time.time() - start_time} seconds")
+    start_time = time.time()
+    queries.finalize_table_import(new_mydb, fk_info, table_name, index_results)
+    print(f"Finalized data for {dir_path} in {time.time() - start_time} seconds")
+    total_end_time = time.time()
+    print(f"Finished importing data for {table_name} in {total_end_time - total_start_time} seconds")
 
-
-    # pattern = '.txt'
-    # files = [os.path.join(dir_path,filename) for filename in os.listdir(dir_path) if filename.endswith(pattern)]
-
-    # if len(files) == 0:
-    #     print(f"No files found in {dir_path}")
-    #     return
-    # print(f"Importing {dir_path} files")
-    #  # get only files not in finished folder
     
-    # # run in parallel
-    # arguments = []
-    # for file in files:
-    #     print(f"Importing file: {file}")
-    #     queries.import_data(mydb, file, table_name, database) 
-    # #     arguments.append((mydb, file, table_name, database))
-         
-    # # with mp.Pool() as pool:
-    # #     pool.starmap(queries.import_data, arguments)
+
+
+
+# random functions
+def get_listing_dirs(dir_path):
+    # Get all directories in the dir_path starting with _
+    listing_dirs = glob.glob(os.path.join(dir_path, '_*'))
+
+    # filter out any directories that are not directories
+    listing_dirs = [dir for dir in listing_dirs if os.path.isdir(dir)]
+
+    return listing_dirs
+
+def submitInParallel(function,args_list):
+    p_list = []
+    for arg in args_list:
+        p = mp.Process(target=function, args=arg)
+        p.daemon = False
+        p_list.append(p)
+        p.start()
+
+    for p in p_list:
+        p.join()
 
 main()
