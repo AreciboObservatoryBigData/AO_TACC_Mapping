@@ -12,6 +12,7 @@ f = open(new_link_info_path, "w")
 # Define the number of cores to use
 num_cores = mp.cpu_count() - 4
 def main():
+    print("Starting")
     global f
     chunksize = 10 ** 5
 
@@ -20,15 +21,21 @@ def main():
     with open(link_info_path, "r") as f2:
         line = f2.readline()
         f.write(line)
+    i = 0
     for chunk in link_info_df:
+        print(f"Chunk {i} started")
         
         split_tasks = np.array_split(chunk["points_to"], num_cores)
         pool = mp.Pool(num_cores)
         results = pool.map(check_link_apply, split_tasks)
+        print("Pool closed")
         pool.close()
         result_df = pd.concat(results)
         chunk["broken_link"] = result_df
+        print("Broken links written to file")
         chunk.apply(chunk_to_file, axis=1)
+
+        i+=1
 
 
 def check_link_apply(row):

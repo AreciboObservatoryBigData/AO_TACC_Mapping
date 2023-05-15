@@ -46,12 +46,7 @@ db_connection_info = {
     "database": database,
     "allow_local_infile": True
 }
-mydb = mysql.connector.connect(
-host=db_connection_info["host"],
-user=db_connection_info["user"],
-passwd=db_connection_info["passwd"],
-database=db_connection_info["database"],
-allow_local_infile=db_connection_info["allow_local_infile"])
+
 
 print("Connected to database")
 
@@ -74,8 +69,7 @@ def main():
     run_dict = {
         "options": [
             "Quit",
-            "Run setup",
-            "Gererate Report",
+            "Reset DB",
             "Import new files",
             "Delete file contents from sql table",
             "Create Mapping",
@@ -84,8 +78,7 @@ def main():
         ],
         "functions": [
             quit,
-            setup,
-            generate_report,
+            run_resets,
             insert_new_files,
             delete_file_sql_contents,
             create_mapping,
@@ -105,22 +98,21 @@ def main():
 
 def setup():
 
-    print("Running listing scripts")
-    # Run listing scripts in transport
-    command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(dir_listing_path)}; python3.7 listing.py'"
-    os.system(command)
-    print("Finished running listing scripts")
-    
-    run_resets()
+    # print("Running listing scripts")
+    # # Run listing scripts in transport
+    # command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(dir_listing_path)}; python3.7 listing.py'"
+    # os.system(command)
+    # print("Finished running listing scripts")
     input("Resets finished, please press enter to continue")
     run_imports()
     
 
-    start_time = time.time()
-    run_insert_file_dir()
-    end_time = time.time()
-    print("Finished inserting file dir relations in {} seconds".format(end_time - start_time))
-    quit()
+    # Leave file_dir implementation for later
+    # start_time = time.time()
+    # run_insert_file_dir()
+    # end_time = time.time()
+    # print("Finished inserting file dir relations in {} seconds".format(end_time - start_time))
+ 
 
     # convert points_to to absolute_paths
     convert_relative_to_absolute()
@@ -182,8 +174,8 @@ def generate_report():
 def insert_new_files():
     print("Inserting new source files")
     # get only files not in finished folder
-    pattern = '.txt'
-    files = [os.path.join(source_dir_path,filename) for filename in os.listdir(source_dir_path) if filename.endswith(pattern)]
+    src_dirs = get_listing_dirs(source_dir_path)
+    dst_dirs = get_listing_dirs(destination_dir_path)
 
     import_data(source_dir_path, table_names["src_listing"],0)
 
@@ -198,10 +190,12 @@ def insert_new_files():
     # Resolve points_to to ID
     resolve_links_to_ID()
 
-    # move files to finished folder
-    for file in files:
-        # move file to finished folder
-        shutil.move(file, os.path.join(source_dir_path, "finished"))
+    # move folders to finished folder
+    for src_dir in src_dirs:
+        shutil.move(src_dir, os.path.join(source_dir_path, "finished"))
+    
+    for dst_dir in dst_dirs:
+        shutil.move(dst_dir, os.path.join(destination_dir_path, "finished"))
 
 def delete_file_sql_contents():
     
@@ -259,16 +253,13 @@ def create_mapping():
 
     # Get all files in the source listing not yet in mapping
     query = queries.select_file_names_no_relations.format(table_name=table_names["src_listing"], mapping_table_name=table_names["mapping"])
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
+    mycursor = submitQuery(query)
     myresult = mycursor.fetchall()
     mycursor.close()
     for row in myresult:
         # Get all files in destination listing that match the filename  and insert the results into the mapping table
         query = queries.insert_mapping_filename.format(mapping_table_name=table_names["mapping"],src_table_name=table_names["src_listing"], dst_table_name=table_names["dst_listing"], src_ID=row[0], filename=row[1])        
-        mycursor = mydb.cursor()
-        mycursor.execute(query)
-        mydb.commit()
+        mycursor = submitQuery(query)
 
 
 
@@ -314,10 +305,10 @@ def convert_relative_to_absolute():
     print("Converting points_to to absolute paths")
     # Get all lines where points_to does not start with /
     query = queries.get_links_points_to_not_absolute.format(table_name=table_names["src_listing"])
-    mycursor = mydb.cursor(dictionary=True)
-    mycursor.execute(query)
-    results = mycursor.fetchall()
-    mycursor.close()
+    results = submitQuery(query, False, True)
+    if len(results) == 0:
+        return
+
     for row in results:
         # So that pylance doesn't complain
         row = dict(row)
@@ -326,19 +317,16 @@ def convert_relative_to_absolute():
         row['points_to'] = absolute_path
         # update row
         update_query = queries.update_link_points_to.format(table_name=table_names["src_listing"], points_to=row['points_to'], ID=row['ID'])
-        mycursor = mydb.cursor(dictionary=True)
-        mycursor.execute(update_query)
-        mydb.commit()
-        mycursor.close()
+        results = submitQuery(update_query, True, True)
 
 def add_broken_links():
     print("Adding broken links")
     # Create broken links report
     # Get all links in src_listing
     query = queries.get_null_broken_links.format(table_name=table_names["src_listing"])
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    src_links = mycursor.fetchall()
+
+    src_links = submitQuery(query, False, False)
+    print(f"Fetched {len(src_links)} links to check")
     # open link_info file as write
     f = open(link_info_path, "w")
     # write header
@@ -361,7 +349,7 @@ def add_broken_links():
     command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(modules_path)};python3.7 check_links.py;'"
     print("Checking links on transport")
     
-    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(command, shell=True)
 
     # subprocess.call(command, shell=True)
     # Read new link_info file
@@ -382,10 +370,8 @@ def add_broken_links():
             if len(IDs) > 0:
                 IDs_str = str(IDs)
                 query = queries.update_broken_by_ID_list.format(table_name=table_names["src_listing"], value=i, ID_list=IDs_str)
-                mycursor = mydb.cursor()
-                mycursor.execute(query)
-                mydb.commit()
-                mycursor.close()
+                results = submitQuery(query, True, True)
+
                 
 
     # delete both link_info files
@@ -395,17 +381,12 @@ def add_broken_links():
 def resolve_links_to_ID():
     print("Resolving links to ID")
     query = queries.update_fk_table_ID.format(table_name=table_names["src_listing"])
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    mydb.commit()
-    mycursor.close()
+    results = submitQuery(query, True, True)
+
 
     # Do the same for dst_listing
     query = queries.update_fk_table_ID.format(table_name=table_names["dst_listing"])
-    mycursor = mydb.cursor()
-    mycursor.execute(query)
-    mydb.commit()
-    mycursor.close()
+    results = submitQuery(query, True, True)
 
 
     
@@ -413,7 +394,15 @@ def resolve_links_to_ID():
     
 
 def run_resets():
+    global db_connection_info
     table_list = [table_names[key] for key in table_names]
+     
+    mydb = mysql.connector.connect(
+    host=db_connection_info["host"],
+    user=db_connection_info["user"],
+    passwd=db_connection_info["passwd"],
+    database=db_connection_info["database"],
+    allow_local_infile=db_connection_info["allow_local_infile"])
     queries.delete_tables_data(mydb, table_list, database)
 
 def run_imports():
@@ -503,9 +492,33 @@ def import_data(dir_path, table_name, src_dst):
     # Order files by .split(_)[-1].split(.)[0]
     files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
 
+    filtered_files = []
+    # Check if they are not already in the database
+    for file in files:
+        file_basename = os.path.basename(file)
+
+        # Make query
+        # SELECT * FROM {listing_paths_table_name} where src_dst = {src_dst_value} and filename = {filename_value};
+        query = queries.get_listing_by_src_dst_listing_path.format(listing_paths_table_name=table_names["listing_paths"],
+                                                                   src_dst_value=src_dst,
+                                                                   filename_value=file_basename
+                                                                   )
+        
+        results = submitQuery(query, False, True)
+
+        if len(results) ==0:
+            filtered_files.append(file)
+        else:
+            print("ERROR!, FOUND DUPLICATES IN LISTING_PATHS")
+            print(results)
+            quit()
+
+
+    files = filtered_files[:]
+
 
     if len(listing_dirs) == 0:
-        print(f"No listing_dirs {dir_path}")
+        print(f"No listing_dirs in {dir_path}")
         return
     
     print(f"Importing {dir_path} files")
@@ -570,5 +583,24 @@ def submitInParallel(function,args_list):
 
     for p in p_list:
         p.join()
+
+def submitQuery(query, commit_bool, dictionary = False):
+    global db_connection_info
+    mydb = mysql.connector.connect(
+    host=db_connection_info["host"],
+    user=db_connection_info["user"],
+    passwd=db_connection_info["passwd"],
+    database=db_connection_info["database"],
+    allow_local_infile=db_connection_info["allow_local_infile"])
+
+    cursor = mydb.cursor(dictionary=dictionary)
+
+    cursor.execute(query)
+    results = cursor.fetchall()
+
+    if commit_bool:
+        mydb.commit() 
+
+    return results
 
 main()

@@ -29,7 +29,7 @@ run_find = True
 replace_special_characters = True
 split_files_bool = True
 add_links_bool = True
-leave_original_files = False
+leave_original_files = True
 
 
 

@@ -5,6 +5,8 @@ insert_type = "INSERT INTO {dst_table_name} SELECT * FROM {src_table_name} where
 
 insert_listing_path_filename = "INSERT INTO {table_name} (filename,src_dst) VALUES ('{filename}',{src_dst})"
 
+get_listing_by_src_dst_listing_path = "SELECT * FROM {listing_paths_table_name} where src_dst = {src_dst_value} and filename = '{filename_value}';"
+
 delete_type = "DELETE FROM {table_name} WHERE filetype = '{type}';"
 
 select_dir_names_no_relations = "SELECT ID, filepath FROM {table_name} WHERE filetype = 'd' AND ID NOT IN(SELECT DISTINCT listing_dir_ID FROM {file_dir_table_name});"
@@ -47,8 +49,8 @@ update_fk_table_ID = '''
 Update {table_name} L1 
 JOIN {table_name} L2
 ON L1.filepath = L2.points_to
-SET L2.{table_name}_ID = L1.ID
-WHERE L2.{table_name}_ID IS NULL;'''
+SET L2.points_to_ID = L1.ID
+WHERE L2.points_to_ID IS NULL;'''
 
 def get_ID_by_filepath(mydb, filepath, table_name):
     # Get the ID of the file just inserted
