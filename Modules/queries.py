@@ -199,6 +199,7 @@ def prepare_table_import(mydb, table_name, db_connection_info):
 
 
 def import_data(db_connection_info, file, table_name, listing_path_ID):
+    print(file)
     mydb = mysql.connector.connect(
     host=db_connection_info["host"],
     user=db_connection_info["user"],

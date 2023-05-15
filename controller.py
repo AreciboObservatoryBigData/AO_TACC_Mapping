@@ -500,6 +500,9 @@ def import_data(dir_path, table_name, src_dst):
     for dir in listing_dirs:
         files += glob.glob(os.path.join(dir, '*.txt'))
 
+    # Order files by .split(_)[-1].split(.)[0]
+    files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
+
 
     if len(listing_dirs) == 0:
         print(f"No listing_dirs {dir_path}")
@@ -517,7 +520,7 @@ def import_data(dir_path, table_name, src_dst):
     # insert the listing_paths
     listing_file_IDs = []
     for file in files:
-        print(file)
+        # print(file)
         filename = os.path.basename(file)
         query = queries.insert_listing_path_filename.format(table_name=table_names["listing_paths"], filename=filename, src_dst=src_dst)
         mycursor = new_mydb.cursor()
@@ -528,6 +531,10 @@ def import_data(dir_path, table_name, src_dst):
     start_time = time.time()
     # run in parallel
     arguments = [(db_connection_info, file, table_name, listing_file_IDs[i]) for i, file in enumerate(files)]
+
+    # for argument in arguments:
+    #     print(argument[1])
+    #     queries.import_data(argument[0], argument[1], argument[2], argument[3])
     with mp.Pool() as pool:
         pool.starmap(queries.import_data, arguments)
     
