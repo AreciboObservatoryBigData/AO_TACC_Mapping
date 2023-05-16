@@ -24,12 +24,15 @@ import subprocess
 import time
 import pandas as pd
 import multiprocessing as mp
+from datetime import datetime
 
 dir_listing_path = 'dir_listing/'
 
 listings_path = 'file_listings/'
 general_files_path = 'general_files/'
 modules_path = 'Modules/'
+backup_dir_path = "/share_skittles/db_backup"
+max_backup_size_GB = 500
 
 link_info_path = os.path.join(general_files_path, 'link_info.tsv')
 
@@ -71,18 +74,18 @@ def main():
             "Quit",
             "Reset DB",
             "Import new files",
-            "Delete file contents from sql table",
-            "Create Mapping",
-            "Move Folder",
+            "Insert File Dir",
+            "Make DB backup",
+            "Restore DB from backup"
             
         ],
         "functions": [
             quit,
             run_resets,
             insert_new_files,
-            delete_file_sql_contents,
-            create_mapping,
-            move_folder,
+            runInsertFileDir,
+            backupDB,
+            restoreDB
 
             
         ]
@@ -131,7 +134,62 @@ def setup():
     files = glob.glob(os.path.join(destination_dir_path, '*.txt'))
     for file in files:
         shutil.move(file, os.path.join(destination_dir_path, "finished"))
+
+def backupDB():
+    global backup_dir_path 
+    global max_backup_size_GB
+    global db_connection_info
+    # Get total size
+    # Get all files
+    files = glob.glob(os.path.join(backup_dir_path, "*"))
+    total_size = 0
+    for file in files:
+        total_size += os.path.getsize(file)
     
+    if total_size > max_backup_size_GB:
+        print("MAX SIZE REACHED, PLEASE CODE SOMETHING TO DELETE FILES")
+        return
+    
+    # Create backup file name with date and time
+    now = datetime.now()
+    timestamp = now.strftime("%Y_%m_%d_%H_%M_%S")
+    output_filename = f"backup_{timestamp}.sql"
+    output_file_path = os.path.join(backup_dir_path, output_filename)
+
+    # backup DB
+    command = f"mysqldump -u {db_connection_info['user']} -p{db_connection_info['passwd']} {db_connection_info['database']} > {output_file_path}"
+    print(command)
+    # run command
+    subprocess.call(command, shell=True)
+
+def restoreDB():
+    global backup_dir_path 
+    global max_backup_size_GB
+    global db_connection_info
+
+    # Get files
+    files = glob.glob(os.path.join(backup_dir_path, "*"))
+    option = menus.get_option_main(files)
+    file_path = files[option]
+
+
+
+    # restore DB
+    command = f"mysqldump -u {db_connection_info['user']} -p{db_connection_info['passwd']} {db_connection_info['database']} < {file_path}"
+    breakpoint()
+    print(command)
+    # run command
+    subprocess.call(command, shell=True)
+    
+
+def runInsertFileDir():
+    args = [
+        (table_names["src_listing"], table_names["src_file_dir"]),
+        (table_names["dst_listing"], table_names["dst_file_dir"])
+    ]
+
+    submitInParallel(insert_file_dir, args)
+
 def generate_report():
     print("--------Generate Report--------")
     def end_loop():
@@ -177,9 +235,12 @@ def insert_new_files():
     src_dirs = get_listing_dirs(source_dir_path)
     dst_dirs = get_listing_dirs(destination_dir_path)
 
-    import_data(source_dir_path, table_names["src_listing"],0)
+    args = [
+        (source_dir_path, table_names["src_listing"],0),
+        (destination_dir_path, table_names["dst_listing"],1)
+    ]
 
-    import_data(destination_dir_path, table_names["dst_listing"],1)
+    submitInParallel(import_data, args)
 
      # convert points_to to absolute_paths
     convert_relative_to_absolute()
@@ -189,13 +250,6 @@ def insert_new_files():
 
     # Resolve points_to to ID
     resolve_links_to_ID()
-
-    # move folders to finished folder
-    for src_dir in src_dirs:
-        shutil.move(src_dir, os.path.join(source_dir_path, "finished"))
-    
-    for dst_dir in dst_dirs:
-        shutil.move(dst_dir, os.path.join(destination_dir_path, "finished"))
 
 def delete_file_sql_contents():
     

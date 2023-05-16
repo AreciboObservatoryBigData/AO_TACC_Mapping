@@ -28,7 +28,7 @@ lines_per_split_file = 250000
 run_find = True
 replace_special_characters = True
 split_files_bool = True
-add_links_bool = True
+add_links_bool = False
 leave_original_files = True
 
 
