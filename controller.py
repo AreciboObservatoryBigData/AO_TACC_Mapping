@@ -19,6 +19,8 @@ import os
 import glob
 from Modules import queries
 from Modules import menus
+from Modules import make_blacklist
+from Modules import global_vars
 import shutil
 import subprocess
 import time
@@ -39,7 +41,7 @@ link_info_path = os.path.join(general_files_path, 'link_info.tsv')
 destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
 source_dir_path = os.path.join(listings_path, 'Source_Listing/')
 
-database = "Skittles_DB"
+database = "Skittles_DB_DEV"
 
 # connect to existing mySQL database
 db_connection_info = {
@@ -49,6 +51,8 @@ db_connection_info = {
     "database": database,
     "allow_local_infile": True
 }
+
+global_vars.db_connection_info = db_connection_info
 
 
 print("Connected to database")
@@ -62,9 +66,12 @@ table_names = {
 
     "dst_listing": "dst_listing",
     "dst_file_dir": "dst_file_dir_relations",
-    "listing_paths": "listing_paths"
+    "listing_paths": "listing_paths",
+    "blacklist": "blacklist_pattern",
+    "blacklist_relations": "src_listing_has_blacklist_pattern"
 
 }
+global_vars.table_names = table_names
 ################
 
 def main():
@@ -75,6 +82,7 @@ def main():
             "Reset DB",
             "Import new files",
             "Insert File Dir",
+            "Make Blacklist",
             "Make DB backup",
             "Restore DB from backup"
             
@@ -84,6 +92,7 @@ def main():
             run_resets,
             insert_new_files,
             runInsertFileDir,
+            make_blacklist.run,
             backupDB,
             restoreDB
 
@@ -145,7 +154,7 @@ def backupDB():
     total_size_GB = 0
     for file in files:
         total_size_GB += os.path.getsize(file)/10**9
-    breakpoint()
+ 
     if total_size_GB > max_backup_size_GB:
         print("MAX SIZE REACHED, PLEASE CODE SOMETHING TO DELETE FILES")
         return
