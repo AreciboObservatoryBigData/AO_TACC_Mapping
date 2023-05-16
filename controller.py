@@ -142,11 +142,11 @@ def backupDB():
     # Get total size
     # Get all files
     files = glob.glob(os.path.join(backup_dir_path, "*"))
-    total_size = 0
+    total_size_GB = 0
     for file in files:
-        total_size += os.path.getsize(file)
-    
-    if total_size > max_backup_size_GB:
+        total_size_GB += os.path.getsize(file)/10**9
+    breakpoint()
+    if total_size_GB > max_backup_size_GB:
         print("MAX SIZE REACHED, PLEASE CODE SOMETHING TO DELETE FILES")
         return
     
@@ -175,7 +175,7 @@ def restoreDB():
 
 
     # restore DB
-    command = f"mysqldump -u {db_connection_info['user']} -p{db_connection_info['passwd']} {db_connection_info['database']} < {file_path}"
+    command = f"mysql -u {db_connection_info['user']} -p{db_connection_info['passwd']} {db_connection_info['database']} < {file_path}"
     breakpoint()
     print(command)
     # run command
