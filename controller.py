@@ -41,7 +41,7 @@ link_info_path = os.path.join(general_files_path, 'link_info.tsv')
 destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
 source_dir_path = os.path.join(listings_path, 'Source_Listing/')
 
-database = "Skittles_DB_DEV"
+database = "Skittles_DB"
 
 # connect to existing mySQL database
 db_connection_info = {
@@ -151,8 +151,7 @@ def restoreDB():
 
     # restore DB
     command = f"mysql -u {db_connection_info['user']} -p{db_connection_info['passwd']} {db_connection_info['database']} < {file_path}"
-    breakpoint()
-    print(command)
+
     # run command
     subprocess.call(command, shell=True)
     
