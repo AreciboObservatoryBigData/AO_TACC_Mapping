@@ -82,6 +82,7 @@ def main():
             "Reset DB",
             "Import new files",
             "Insert File Dir",
+            "Generate Report",
             "Make Blacklist",
             "Make DB backup",
             "Restore DB from backup"
@@ -92,6 +93,7 @@ def main():
             run_resets,
             insert_new_files,
             runInsertFileDir,
+            generate_report,
             make_blacklist.run,
             backupDB,
             restoreDB
@@ -107,42 +109,6 @@ def main():
         option = menus.get_option_main(run_dict["options"])
         run_dict["functions"][option]()
 
-
-def setup():
-
-    # print("Running listing scripts")
-    # # Run listing scripts in transport
-    # command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(dir_listing_path)}; python3.7 listing.py'"
-    # os.system(command)
-    # print("Finished running listing scripts")
-    input("Resets finished, please press enter to continue")
-    run_imports()
-    
-
-    # Leave file_dir implementation for later
-    # start_time = time.time()
-    # run_insert_file_dir()
-    # end_time = time.time()
-    # print("Finished inserting file dir relations in {} seconds".format(end_time - start_time))
- 
-
-    # convert points_to to absolute_paths
-    convert_relative_to_absolute()
-
-    # Identify actual broken links
-    add_broken_links()
-
-    # Resolve points_to to ID
-    resolve_links_to_ID()
-
-    # move files to finished folder
-    files = glob.glob(os.path.join(source_dir_path, '*.txt'))
-    for file in files:
-        shutil.move(file, os.path.join(source_dir_path, "finished"))
-
-    files = glob.glob(os.path.join(destination_dir_path, '*.txt'))
-    for file in files:
-        shutil.move(file, os.path.join(destination_dir_path, "finished"))
 
 def backupDB():
     global backup_dir_path 
@@ -208,10 +174,7 @@ def generate_report():
     def dirs_missing_report():
         # get 10 rows of missing_dirs
         query = queries.get_missing_included_files.format(table_name = table_names["src_listing"])
-        mycursor = mydb.cursor(dictionary=True)
-        mycursor.execute(query)
-        myresult = mycursor.fetchall()
-        mycursor.close()
+        myresult = submitQuery(query, False, True)
 
         # turn dictionary to dataframe
         df = pd.DataFrame(myresult)
@@ -444,12 +407,13 @@ def add_broken_links():
 def resolve_links_to_ID():
     print("Resolving links to ID")
     query = queries.update_fk_table_ID.format(table_name=table_names["src_listing"])
-    results = submitQuery(query, True, True)
-
-
+    args = [(query, True, True)]
     # Do the same for dst_listing
     query = queries.update_fk_table_ID.format(table_name=table_names["dst_listing"])
-    results = submitQuery(query, True, True)
+    args.append((query, True, True))
+    submitInParallel(submitQuery, args)
+
+    
 
 
     
@@ -608,11 +572,10 @@ def import_data(dir_path, table_name, src_dst):
     # run in parallel
     arguments = [(db_connection_info, file, table_name, listing_file_IDs[i]) for i, file in enumerate(files)]
 
-    # for argument in arguments:
-    #     print(argument[1])
-    #     queries.import_data(argument[0], argument[1], argument[2], argument[3])
-    with mp.Pool() as pool:
-        pool.starmap(queries.import_data, arguments)
+    for argument in arguments:
+        queries.import_data(argument[0], argument[1], argument[2], argument[3])
+    # with mp.Pool() as pool:
+    #     pool.starmap(queries.import_data, arguments)
     
 
     print(f"Imported data for {dir_path} in {time.time() - start_time} seconds")

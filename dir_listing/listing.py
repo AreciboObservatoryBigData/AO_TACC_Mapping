@@ -122,6 +122,9 @@ def main():
                 # do the same for \r
                 new_filepath = new_filepath.replace("\r", ";(" + str(ord("\r")) + ")")
 
+                # so the same for \\
+                new_filepath = new_filepath.replace("\\", ";(" + str(ord("\\")) + ")")
+
                 # change the values in split_b_line
                 split_b_line[1] = new_filepath.encode()
                 split_b_line[0] = os.path.basename(new_filepath).encode()
@@ -210,6 +213,8 @@ def has_control_characters(input_string):
         if char not in string.printable:
             return True
         if char == "\r":
+            return True
+        if char == "\\":
             return True
     # If we reach this point, there are no control characters
     return False
