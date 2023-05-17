@@ -572,10 +572,10 @@ def import_data(dir_path, table_name, src_dst):
     # run in parallel
     arguments = [(db_connection_info, file, table_name, listing_file_IDs[i]) for i, file in enumerate(files)]
 
-    for argument in arguments:
-        queries.import_data(argument[0], argument[1], argument[2], argument[3])
-    # with mp.Pool() as pool:
-    #     pool.starmap(queries.import_data, arguments)
+    # for argument in arguments:
+    #     queries.import_data(argument[0], argument[1], argument[2], argument[3])
+    with mp.Pool() as pool:
+        pool.starmap(queries.import_data, arguments)
     
 
     print(f"Imported data for {dir_path} in {time.time() - start_time} seconds")
