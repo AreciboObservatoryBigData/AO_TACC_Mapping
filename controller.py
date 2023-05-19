@@ -14,6 +14,8 @@
 # - Add option to move files in sql DB using like
 # - Add option to generate reports
 
+import pymongo
+
 import mysql.connector
 import os
 import glob
@@ -21,6 +23,8 @@ from Modules import queries
 from Modules import menus
 from Modules import make_blacklist
 from Modules import global_vars
+from Modules import general
+from Modules import import_data
 import shutil
 import subprocess
 import time
@@ -41,21 +45,9 @@ link_info_path = os.path.join(general_files_path, 'link_info.tsv')
 destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
 source_dir_path = os.path.join(listings_path, 'Source_Listing/')
 
-database = "Skittles_DB"
-
-# connect to existing mySQL database
-db_connection_info = {
-    "host": "127.0.0.1",
-    "user": "bigdata",
-    "passwd": "59CUkBH@tvUpp@5Z",
-    "database": database,
-    "allow_local_infile": True
-}
-
-global_vars.db_connection_info = db_connection_info
+database_name = "Skittles_DB"
 
 
-print("Connected to database")
 
 
 #Setup vaiables
@@ -80,31 +72,22 @@ def main():
         "options": [
             "Quit",
             "Reset DB",
-            "Import new files",
-            "Insert File Dir",
-            "Generate Report",
-            "Make Blacklist",
-            "Make DB backup",
-            "Restore DB from backup"
+            "Import New Data",
+
             
         ],
         "functions": [
             quit,
             run_resets,
-            insert_new_files,
-            runInsertFileDir,
-            generate_report,
-            make_blacklist.run,
-            backupDB,
-            restoreDB
+            importNewData,
+
 
             
         ]
             
     }
-    
-    finished = False
-    while not finished:
+
+    while True:
         print("-----------Main Menu-----------")
         option = menus.get_option_main(run_dict["options"])
         run_dict["functions"][option]()
@@ -420,16 +403,29 @@ def resolve_links_to_ID():
     
 
 def run_resets():
-    global db_connection_info
-    table_list = [table_names[key] for key in table_names]
-     
-    mydb = mysql.connector.connect(
-    host=db_connection_info["host"],
-    user=db_connection_info["user"],
-    passwd=db_connection_info["passwd"],
-    database=db_connection_info["database"],
-    allow_local_infile=db_connection_info["allow_local_infile"])
-    queries.delete_tables_data(mydb, table_list, database)
+    # connect to mongoDB, drop all collections
+    # connect to DB
+    db = general.connectToDB(database_name)
+    # drop all collections
+    for collection in db.list_collection_names():
+        db[collection].drop()
+
+
+def importNewData():
+
+
+
+    # run for dst for now
+
+    # Get all files in destination listing
+    files = glob.glob(os.path.join(destination_dir_path, '*.txt'))
+    # Assign all files to dst_listing
+    file_db_info = [[files, table_names["dst_listing"]]]
+    import_data.run(file_db_info, database_name)
+
+
+
+
 
 def run_imports():
 # Move all destination listing_dirs in the finished folder to the root folder
@@ -495,96 +491,6 @@ def executeQuery(query):
     
     return mycursor
 
-def import_data(dir_path, table_name, src_dst):
-
-    # make new my_db connection
-    global db_connection_info
-    new_mydb = mysql.connector.connect(
-    host=db_connection_info["host"],
-    user=db_connection_info["user"],
-    passwd=db_connection_info["passwd"],
-    database=db_connection_info["database"],
-    allow_local_infile=db_connection_info["allow_local_infile"])
-
-    total_start_time = time.time()
-    print(f"Importing data for {table_name}")
-    listing_dirs = get_listing_dirs(dir_path)
-
-    # get all the files in each directory
-    files = []
-    for dir in listing_dirs:
-        files += glob.glob(os.path.join(dir, '*.txt'))
-
-    # Order files by .split(_)[-1].split(.)[0]
-    files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
-
-    filtered_files = []
-    # Check if they are not already in the database
-    for file in files:
-        file_basename = os.path.basename(file)
-
-        # Make query
-        # SELECT * FROM {listing_paths_table_name} where src_dst = {src_dst_value} and filename = {filename_value};
-        query = queries.get_listing_by_src_dst_listing_path.format(listing_paths_table_name=table_names["listing_paths"],
-                                                                   src_dst_value=src_dst,
-                                                                   filename_value=file_basename
-                                                                   )
-        
-        results = submitQuery(query, False, True)
-
-        if len(results) ==0:
-            filtered_files.append(file)
-        else:
-            print("ERROR!, FOUND DUPLICATES IN LISTING_PATHS")
-            print(results)
-            quit()
-
-
-    files = filtered_files[:]
-
-
-    if len(listing_dirs) == 0:
-        print(f"No listing_dirs in {dir_path}")
-        return
-    
-    print(f"Importing {dir_path} files")
-    # get only files not in finished folder
-    # ...
-    results = queries.prepare_table_import(new_mydb, table_name, db_connection_info)
-    fk_info = results[1]
-
-    index_results = results[2]
-
-    # do all things that need to be done file by file
-    # insert the listing_paths
-    listing_file_IDs = []
-    for file in files:
-        # print(file)
-        filename = os.path.basename(file)
-        query = queries.insert_listing_path_filename.format(table_name=table_names["listing_paths"], filename=filename, src_dst=src_dst)
-        mycursor = new_mydb.cursor()
-        mycursor.execute(query)
-        new_mydb.commit()
-        listing_file_IDs.append(mycursor.lastrowid)
-
-    start_time = time.time()
-    # run in parallel
-    arguments = [(db_connection_info, file, table_name, listing_file_IDs[i]) for i, file in enumerate(files)]
-
-    # for argument in arguments:
-    #     queries.import_data(argument[0], argument[1], argument[2], argument[3])
-    with mp.Pool() as pool:
-        pool.starmap(queries.import_data, arguments)
-    
-
-    print(f"Imported data for {dir_path} in {time.time() - start_time} seconds")
-    start_time = time.time()
-    queries.finalize_table_import(new_mydb, fk_info, table_name, index_results)
-    print(f"Finalized data for {dir_path} in {time.time() - start_time} seconds")
-    total_end_time = time.time()
-    print(f"Finished importing data for {table_name} in {total_end_time - total_start_time} seconds")
-
-    
 
 
 
@@ -627,5 +533,7 @@ def submitQuery(query, commit_bool, dictionary = False):
         mydb.commit() 
 
     return results
+
+
 
 main()
