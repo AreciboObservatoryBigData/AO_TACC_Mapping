@@ -9,6 +9,7 @@ serial = False
 
 def run(files_db_info, db_name, listing_paths_collection_name):
     separator = "\t,;"
+    pool = mp.Pool(processes=mp.cpu_count()*10)
     
     for info in files_db_info:
         # first element is a list of files
@@ -23,7 +24,7 @@ def run(files_db_info, db_name, listing_paths_collection_name):
             collection = db[listing_paths_collection_name]
             listing_paths_id = collection.insert_one({"filepath": file}).inserted_id
             # Make pool of 10X the number of cores
-            pool = mp.Pool(processes=mp.cpu_count()*10)
+            
             header = []
             start_time = time.time()
             memory_stats = psutil.virtual_memory()
@@ -75,14 +76,18 @@ def run(files_db_info, db_name, listing_paths_collection_name):
                     print(i)
                 
                 i += 1
-        if serial:
-            submitInserts(submissions,db_name,collection_name)
-        else:
-            pool.apply_async(submitInserts, args=(submissions,db_name,collection_name))
+            end_time = time.time()
+            print("Time taken: " + str(end_time - start_time))
+            if serial:
+                submitInserts(submissions,db_name,collection_name)
+            else:
+                pool.apply_async(submitInserts, args=(submissions,db_name,collection_name))
+            print(i)
+            submissions = []
         pool.close()
         pool.join()
-        end_time = time.time()
-        print("Time taken: " + str(end_time - start_time))
+        
+        
 
 def submitInserts(submissions,db_name, collection_name):
     db = general.connectToDB(db_name)

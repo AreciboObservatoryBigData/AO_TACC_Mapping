@@ -144,6 +144,15 @@ def importNewData():
 
     # Get all files in destination listing
     files = glob.glob(os.path.join(destination_dir_path, '*.txt'))
+    # get all documents in listing_paths
+    db = general.connectToDB(database_name)
+    collection = db[table_names["listing_paths"]]
+    listing_paths = collection.find({}, {"filepath": 1})
+    listing_paths = [listing_path["filepath"] for listing_path in listing_paths]
+
+    # filter out files already in listing_paths
+    files = [file for file in files if file not in listing_paths]
+  
     # Assign all files to dst_listing
     file_db_info = [[files, table_names["dst_listing"]]]
     import_data.run(file_db_info, database_name, table_names["listing_paths"])
