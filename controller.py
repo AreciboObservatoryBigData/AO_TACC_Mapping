@@ -74,15 +74,20 @@ def main():
             "Quit",
             "Reset DB",
             "Import New Data",
+            "Add Indexes",
             "Insert File Dir Relations",
+            "Make DB Backup",
+            "Restore from Backup"
 
             
         ],
         "functions": [
             quit,
-            run_resets,
+            runResets,
             importNewData,
+            addIndexes,
             insertFileDir,
+            backupDB
 
 
             
@@ -96,13 +101,50 @@ def main():
         run_dict["functions"][option]()
 
 
+def runResets():
+    # connect to mongoDB, drop all collections
+    # connect to DB
+    db = general.connectToDB(database_name)
+    # drop all collections
+    for collection in db.list_collection_names():
+        db[collection].drop()
+
+def addIndexes():
+    db = general.connectToDB(database_name)
+    tables = [table_names["dst_listing"]]
+    indexes = [
+        [("filepath", "text")],
+        [("filename", "text")],
+        [("filetype", 1)],
+        [("points_to", "text")],
+    ]
+    for table in tables:
+        print(f"Adding indexes to {table}")
+        collection = db[table]
+        for index in indexes:
+            print(f"Adding index {index}")
+            collection.create_index(index)
+
+
+
+
+def importNewData():
+
+    # run for dst for now
+
+    # Get all files in destination listing
+    files = glob.glob(os.path.join(destination_dir_path, '*.txt'))
+    # Assign all files to dst_listing
+    file_db_info = [[files, table_names["dst_listing"]]]
+    import_data.run(file_db_info, database_name)
+
 def backupDB():
     global backup_dir_path 
     global max_backup_size_GB
-    global db_connection_info
+    global database_name
     # Get total size
     # Get all files
-    files = glob.glob(os.path.join(backup_dir_path, "*"))
+    files = general.getRecursiveFiles(backup_dir_path)
     total_size_GB = 0
     for file in files:
         total_size_GB += os.path.getsize(file)/10**9
@@ -114,11 +156,14 @@ def backupDB():
     # Create backup file name with date and time
     now = datetime.now()
     timestamp = now.strftime("%Y_%m_%d_%H_%M_%S")
-    output_filename = f"backup_{timestamp}.sql"
-    output_file_path = os.path.join(backup_dir_path, output_filename)
+    output_dir_name = f"backup_{timestamp}"
+    output_dir_path = os.path.join(backup_dir_path, output_dir_name)
+
+    command = f"mkdir {output_dir_path}"
+    subprocess.call(command, shell=True)
 
     # backup DB
-    command = f"mysqldump -u {db_connection_info['user']} -p{db_connection_info['passwd']} {db_connection_info['database']} > {output_file_path}"
+    command = f"mongodump --host localhost --port 27017 --db {database_name} --out {output_dir_path}"
     print(command)
     # run command
     subprocess.call(command, shell=True)
@@ -405,24 +450,9 @@ def resolve_links_to_ID():
 
     
 
-def run_resets():
-    # connect to mongoDB, drop all collections
-    # connect to DB
-    db = general.connectToDB(database_name)
-    # drop all collections
-    for collection in db.list_collection_names():
-        db[collection].drop()
 
 
-def importNewData():
 
-    # run for dst for now
-
-    # Get all files in destination listing
-    files = glob.glob(os.path.join(destination_dir_path, '*.txt'))
-    # Assign all files to dst_listing
-    file_db_info = [[files, table_names["dst_listing"]]]
-    import_data.run(file_db_info, database_name)
 
 def insertFileDirFromDir(listing_dir):
         print(listing_dir['filepath'])
