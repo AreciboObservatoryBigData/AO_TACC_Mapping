@@ -46,6 +46,7 @@ destination_dir_path = os.path.join(listings_path, 'Destination_Listing/')
 source_dir_path = os.path.join(listings_path, 'Source_Listing/')
 
 database_name = "Skittles_DB"
+global_vars.db_name = database_name
 
 
 
@@ -73,6 +74,7 @@ def main():
             "Quit",
             "Reset DB",
             "Import New Data",
+            "Insert File Dir Relations",
 
             
         ],
@@ -80,6 +82,7 @@ def main():
             quit,
             run_resets,
             importNewData,
+            insertFileDir,
 
 
             
@@ -413,8 +416,6 @@ def run_resets():
 
 def importNewData():
 
-
-
     # run for dst for now
 
     # Get all files in destination listing
@@ -422,6 +423,42 @@ def importNewData():
     # Assign all files to dst_listing
     file_db_info = [[files, table_names["dst_listing"]]]
     import_data.run(file_db_info, database_name)
+
+def insertFileDirFromDir(listing_dir):
+        print(listing_dir['filepath'])
+        # connect to DB
+        db = general.connectToDB(database_name)
+        # get collection
+        collection = db[table_names["dst_file_dir"]]
+
+        files = queries.getIDsFromDir(listing_dir, table_names["dst_listing"])
+        # make list of dicts to insert
+        file_dir_relations = [{"file_ID": file["_id"], "dir_ID": listing_dir["_id"]} for file in files]
+
+        # insert using insert_many
+        collection.insert_many(file_dir_relations)
+
+def insertFileDir():
+    print("Inserting file dir relations")
+    start_time = time.time()
+    
+
+    # Get all documents with filetype = "d"
+    listing_dirs = queries.getDirs(table_names["dst_listing"])
+    arguments = []
+    for listing_dir in listing_dirs:
+        arguments.append((listing_dir,))
+    submitInParallel(insertFileDirFromDir, arguments)
+    print(f"Finished inserting file dir relations in {time.time() - start_time} seconds")
+    # for argument in arguments:
+    #     insertFileDirFromDir(argument[0])
+
+
+    #############################
+    # Do it using aggregations
+    # queries.insertFileDir(table_names["dst_listing"], table_names["dst_file_dir"])
+
+        
 
 
 
@@ -505,15 +542,37 @@ def get_listing_dirs(dir_path):
     return listing_dirs
 
 def submitInParallel(function,args_list):
+    check_time = 10
     p_list = []
+    pool = mp.Pool(processes=mp.cpu_count()*20)
+    
     for arg in args_list:
-        p = mp.Process(target=function, args=arg)
-        p.daemon = False
-        p_list.append(p)
-        p.start()
+        p_list.append(pool.apply_async(function, arg))
 
-    for p in p_list:
-        p.join()
+        
+    print("All processes started: " + str(len(p_list)))
+    last_p_list_len = len(p_list)
+    start_time = time.time()
+    while len(p_list) > 0:
+        p_list_len = len(p_list)
+        
+        if p_list_len != last_p_list_len:
+            finished_num = last_p_list_len - p_list_len
+            last_p_list_len = p_list_len
+            print(f"Finished {finished_num} processes")
+            print(f"Processes left: {p_list_len}")
+            print(f"Time elapsed: {time.time() - start_time} seconds")
+            print("Average time per process: " + str((time.time() - start_time)/finished_num) + " seconds")
+            print("Estimated time left: " + str((time.time() - start_time)/finished_num * p_list_len) + " seconds")
+            start_time = time.time()
+            
+        
+        for i, p in enumerate(p_list):
+            if p.ready():
+                p_list.pop(i)
+        time.sleep(check_time)
+    pool.close()
+    pool.join()
 
 def submitQuery(query, commit_bool, dictionary = False):
     global db_connection_info
