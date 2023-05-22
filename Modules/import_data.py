@@ -7,7 +7,7 @@ import sys
 
 serial = False
 
-def run(files_db_info, db_name):
+def run(files_db_info, db_name, listing_paths_collection_name):
     separator = "\t,;"
     
     for info in files_db_info:
@@ -18,6 +18,10 @@ def run(files_db_info, db_name):
         
         for file in files:
             print("Processing " + file)
+            # Add the file to the listing_paths database and get the id
+            db = general.connectToDB(db_name)
+            collection = db[listing_paths_collection_name]
+            listing_paths_id = collection.insert_one({"filepath": file}).inserted_id
             # Make pool of 10X the number of cores
             pool = mp.Pool(processes=mp.cpu_count()*10)
             header = []
@@ -35,8 +39,10 @@ def run(files_db_info, db_name):
                 split_line = line.split(separator)
                 dict_line = dict(zip(header, split_line))
                 # convert filesize to int
-
-                dict_line["filesize"] = int(dict_line["filesize"])
+                try:
+                    dict_line["filesize"] = int(dict_line["filesize"])
+                except:
+                    breakpoint()
 
                 # Convert fileAtime to double
                 dict_line["fileAtime"] = float(dict_line["fileAtime"])
@@ -44,6 +50,8 @@ def run(files_db_info, db_name):
                 dict_line["fileMtime"] = float(dict_line["fileMtime"])
                 # Convert fileCtime to double
                 dict_line["fileCtime"] = float(dict_line["fileCtime"])
+                # Add the listing_paths_id to the dict
+                dict_line["listing_paths_id"] = listing_paths_id
                 submissions.append(dict_line)
 
                 if memory_stats.percent > 90:

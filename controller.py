@@ -74,7 +74,6 @@ def main():
             "Quit",
             "Reset DB",
             "Import New Data",
-            "Add Indexes",
             "Insert File Dir Relations",
             "Make DB Backup",
             "Restore from Backup"
@@ -85,7 +84,6 @@ def main():
             quit,
             runResets,
             importNewData,
-            addIndexes,
             insertFileDir,
             backupDB
 
@@ -108,15 +106,13 @@ def runResets():
     # drop all collections
     for collection in db.list_collection_names():
         db[collection].drop()
-
-def addIndexes():
-    db = general.connectToDB(database_name)
-    tables = [table_names["dst_listing"]]
+    
+    tables = [table_names["src_listing"], table_names["dst_listing"]]
     indexes = [
-        [("filepath", "text")],
-        [("filename", "text")],
-        [("filetype", 1)],
-        [("points_to", "text")],
+        "filepath",
+        "filename",
+        "points_to",
+        "filetype"
     ]
     for table in tables:
         print(f"Adding indexes to {table}")
@@ -124,6 +120,20 @@ def addIndexes():
         for index in indexes:
             print(f"Adding index {index}")
             collection.create_index(index)
+    
+    # Do the same for file_dir_relations but only on the dir_ID field
+    tables = [table_names["src_file_dir"], table_names["dst_file_dir"]]
+    indexes = [
+        "dir_ID"
+    ]
+    for table in tables:
+        print(f"Adding indexes to {table}")
+        collection = db[table]
+        for index in indexes:
+            print(f"Adding index {index}")
+            collection.create_index(index)
+
+
 
 
 
@@ -136,7 +146,7 @@ def importNewData():
     files = glob.glob(os.path.join(destination_dir_path, '*.txt'))
     # Assign all files to dst_listing
     file_db_info = [[files, table_names["dst_listing"]]]
-    import_data.run(file_db_info, database_name)
+    import_data.run(file_db_info, database_name, table_names["listing_paths"])
 
 def backupDB():
     global backup_dir_path 

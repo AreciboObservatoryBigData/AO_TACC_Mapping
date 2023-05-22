@@ -177,7 +177,7 @@ def getLine(filepath):
 
     # make line
     line = ""
-    line += str(dict_line[header[0]]) + separator
+    line += str(dict_line[header[0]])
     for key in header[1:]:
         line += separator +  str(dict_line[key]) 
     
