@@ -155,6 +155,12 @@ def importNewData():
   
     # Assign all files to dst_listing
     file_db_info = [[files, table_names["dst_listing"]]]
+
+    # Do the same for src_listing
+    files = glob.glob(os.path.join(source_dir_path, '*.txt'))
+    # filter out files already in listing_paths
+    files = [file for file in files if file not in listing_paths]
+    file_db_info.append([files, table_names["src_listing"]])
     import_data.run(file_db_info, database_name, table_names["listing_paths"])
 
 def backupDB():

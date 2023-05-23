@@ -11,6 +11,7 @@ separator = "\t,;"
 output_file_dir = "Output/src"
 print_num = 250000
 serial = False
+map_bool = True
 
 # verify = True
 
@@ -37,7 +38,9 @@ def main():
 
     for dir_path in dirs:
         output_file_path = os.path.join(output_file_dir, dir_path.replace("/", "_") + ".txt")
-
+        if os.path.exists(output_file_path):
+            print("Output file already exists: " + output_file_path)
+            continue
 
         # Open output file
         output_file = open(output_file_path, "w")
@@ -49,7 +52,7 @@ def main():
         output_file.write(line + "\n")
 
 
-        pool = mp.Pool(processes=mp.cpu_count()*20)
+        pool = mp.Pool(processes=250)
 
         # Get Listing
         listing = os.listdir(dir_path)
@@ -76,7 +79,7 @@ def main():
                     listing = [os.path.join(filepath, item) for item in listing]
                     tasks.extend(listing)
 
-                if i % 1000 == 0:
+                if i % print_num == 0:
                     print("Completed " + str(i) + " tasks")
                 i += 1
             ###########################
@@ -160,9 +163,11 @@ def getLine(filepath):
         link_info = os.lstat(filepath)
         dict_line["filesize"] = link_info.st_size
         dict_line["points_to"] = os.readlink(filepath)
+        # If points_to is a relative path, make it absolute
+        if dict_line["points_to"][0] != "/":
+            dict_line["points_to"] = os.path.join(os.path.dirname(filepath), dict_line["points_to"])
         for char in dict_line["points_to"]:
             dict_line["points_to"] += getIfAllowableChar(char)
-        dict_line["points_to"] = os.path.abspath(dict_line["points_to"])
         dict_line["fileAtime"] = link_info.st_atime
         dict_line["fileMtime"] = link_info.st_mtime
         dict_line["fileCtime"] = link_info.st_ctime
