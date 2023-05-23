@@ -166,7 +166,9 @@ def getLine(filepath):
         # If points_to is a relative path, make it absolute
         if dict_line["points_to"][0] != "/":
             dict_line["points_to"] = os.path.join(os.path.dirname(filepath), dict_line["points_to"])
-        for char in dict_line["points_to"]:
+        points_to_filepath = dict_line["points_to"]
+        dict_line["points_to"] = ""
+        for char in points_to_filepath:
             dict_line["points_to"] += getIfAllowableChar(char)
         dict_line["fileAtime"] = link_info.st_atime
         dict_line["fileMtime"] = link_info.st_mtime

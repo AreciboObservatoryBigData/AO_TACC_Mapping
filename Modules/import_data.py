@@ -9,9 +9,10 @@ serial = False
 
 def run(files_db_info, db_name, listing_paths_collection_name):
     separator = "\t,;"
-    pool = mp.Pool(processes=mp.cpu_count()*10)
+    
     
     for info in files_db_info:
+        pool = mp.Pool(processes=mp.cpu_count()*10)
         # first element is a list of files
         files = info[0]
         # second element is the collection name
@@ -52,7 +53,7 @@ def run(files_db_info, db_name, listing_paths_collection_name):
                 # Convert fileCtime to double
                 dict_line["fileCtime"] = float(dict_line["fileCtime"])
                 # Add the listing_paths_id to the dict
-                dict_line["listing_paths_id"] = listing_paths_id
+                dict_line["listing_paths_ID"] = listing_paths_id
                 submissions.append(dict_line)
 
                 if memory_stats.percent > 90:

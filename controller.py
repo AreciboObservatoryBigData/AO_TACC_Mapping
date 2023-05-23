@@ -75,6 +75,7 @@ def main():
             "Reset DB",
             "Import New Data",
             "Insert File Dir Relations",
+            "Remove Listing Entries",
             "Make DB Backup",
             "Restore from Backup"
 
@@ -85,7 +86,9 @@ def main():
             runResets,
             importNewData,
             insertFileDir,
-            backupDB
+            deleteListingEntries,
+            backupDB,
+
 
 
             
@@ -132,6 +135,19 @@ def runResets():
         for index in indexes:
             print(f"Adding index {index}")
             collection.create_index(index)
+    # Add unique fields
+    index_keys = [
+        ("dir_ID", 1),
+        ("file_ID", 1)
+    ]
+    index_options = {
+        "unique": True
+    }
+    for table in tables:
+        print(f"Adding unique indexes to {table}")
+        collection = db[table]
+        collection.create_index(index_keys, **index_options)
+
 
 
 
@@ -156,12 +172,57 @@ def importNewData():
     # Assign all files to dst_listing
     file_db_info = [[files, table_names["dst_listing"]]]
 
+
     # Do the same for src_listing
     files = glob.glob(os.path.join(source_dir_path, '*.txt'))
     # filter out files already in listing_paths
     files = [file for file in files if file not in listing_paths]
     file_db_info.append([files, table_names["src_listing"]])
     import_data.run(file_db_info, database_name, table_names["listing_paths"])
+
+def deleteListingEntries():
+    # connect to DB
+    db = general.connectToDB(database_name)
+
+    # get all documents in listing_paths
+    collection = db[table_names["listing_paths"]]
+    listing_paths = collection.find({}, {"_id":1,"filepath": 1})
+
+    print("Select which listing to delete data from")
+    options = [
+        "Return to main menu",
+        "Source Listing",
+        "Destination Listing"
+    ]
+    option = menus.get_option_main(options)
+    if option == 0:
+        return
+    elif option == 1:
+        table_name = table_names["src_listing"]
+        listing_paths = [listing_path for listing_path in listing_paths if listing_path["filepath"].startswith(source_dir_path)]
+    elif option == 2:
+        table_name = table_names["dst_listing"]
+        listing_paths = [listing_path for listing_path in listing_paths if listing_path["filepath"].startswith(destination_dir_path)]
+    else:
+        print("Invalid option")
+        return
+
+    # Print all options and let user choose which to delete
+    options = []
+    for listing_path in listing_paths:
+        options.append(listing_path["filepath"])
+    option = menus.get_option_main(options)
+    delete_doc = listing_paths[option]
+
+    # Delete all documents in table_name where listing_paths_ID = delete_doc["_id"]
+    queries.deleteByListingPathsID(table_name, delete_doc["_id"])
+
+    print("Deleting from listing_paths")
+    # Delete the document from listing_paths
+    collection.delete_one({"_id": delete_doc["_id"]})
+
+
+
 
 def backupDB():
     global backup_dir_path 
@@ -496,15 +557,19 @@ def insertFileDirFromDir(listing_dir):
 def insertFileDir():
     print("Inserting file dir relations")
     start_time = time.time()
-    
 
-    # Get all documents with filetype = "d"
-    listing_dirs = queries.getDirs(table_names["dst_listing"])
-    arguments = []
-    for listing_dir in listing_dirs:
-        arguments.append((listing_dir,))
-    submitInParallel(insertFileDirFromDir, arguments)
-    print(f"Finished inserting file dir relations in {time.time() - start_time} seconds")
+    run_list = [
+        table_names["dst_listing"]
+    ]
+    
+    for listing_table_name in run_list:
+        # Get all documents with filetype = "d" that are not found in the dir_ID field of the file_dir_relations table
+        listing_dirs = queries.getDirs(listing_table_name)
+        arguments = []
+        for listing_dir in listing_dirs:
+            arguments.append((listing_dir,))
+        submitInParallel(insertFileDirFromDir, arguments)
+        print(f"Finished inserting file dir relations in {time.time() - start_time} seconds")
     # for argument in arguments:
     #     insertFileDirFromDir(argument[0])
 
@@ -600,12 +665,14 @@ def submitInParallel(function,args_list):
     check_time = 10
     p_list = []
     pool = mp.Pool(processes=mp.cpu_count()*20)
+
+    # Monitor the memory usage of a single process, use the average to estimate the amount of processes you can run
     
     for arg in args_list:
         p_list.append(pool.apply_async(function, arg))
 
         
-    print("All processes started: " + str(len(p_list)))
+    print("\n\n\nAll processes started: " + str(len(p_list)) + "\n\n")
     last_p_list_len = len(p_list)
     start_time = time.time()
     while len(p_list) > 0:

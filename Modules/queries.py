@@ -19,6 +19,14 @@ def getIDsFromDir(dir_info,collection_name):
     files = collection.find({"filepath": {"$regex": "^" + dir_info["filepath"] + "/"}}, {"_id": 1})
     return files
 
+def deleteByListingPathsID(table_name, listing_paths_id):
+    print("Deleting from " + table_name + " where listing_paths_ID = " + str(listing_paths_id))
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[table_name]
+    # delete all files from directory
+    collection.delete_many({"listing_paths_ID": listing_paths_id})
+
 # def insertFileDir(listing_table_name, file_dir_table_name):
 #     aggregation = [
 #         {"$match": {"filetype": "d"}},
