@@ -75,6 +75,7 @@ def main():
             "Reset DB",
             "Import New Data",
             "Insert File Dir Relations",
+            "Identify broken links"
             "Remove Listing Entries",
             "Make DB Backup",
             "Restore from Backup"
@@ -86,6 +87,7 @@ def main():
             runResets,
             importNewData,
             insertFileDir,
+            identifyBrokenLinks,
             deleteListingEntries,
             backupDB,
 
@@ -148,12 +150,6 @@ def runResets():
         collection = db[table]
         collection.create_index(index_keys, **index_options)
 
-
-
-
-
-
-
 def importNewData():
 
     # run for dst for now
@@ -179,6 +175,33 @@ def importNewData():
     files = [file for file in files if file not in listing_paths]
     file_db_info.append([files, table_names["src_listing"]])
     import_data.run(file_db_info, database_name, table_names["listing_paths"])
+
+def insertFileDir():
+    print("Inserting file dir relations")
+    start_time = time.time()
+
+    run_list = [
+        table_names["dst_listing"]
+    ]
+    
+    for listing_table_name in run_list:
+        # Get all documents with filetype = "d" that are not found in the dir_ID field of the file_dir_relations table
+        listing_dirs = queries.getDirs(listing_table_name)
+        arguments = []
+        for listing_dir in listing_dirs:
+            arguments.append((listing_dir,))
+        submitInParallel(insertFileDirFromDir, arguments)
+        print(f"Finished inserting file dir relations in {time.time() - start_time} seconds")
+    # for argument in arguments:
+    #     insertFileDirFromDir(argument[0])
+
+
+    #############################
+    # Do it using aggregations
+    # queries.insertFileDir(table_names["dst_listing"], table_names["dst_file_dir"])
+
+def identifyBrokenLinks():
+    None  
 
 def deleteListingEntries():
     # connect to DB
@@ -554,31 +577,7 @@ def insertFileDirFromDir(listing_dir):
         # insert using insert_many
         collection.insert_many(file_dir_relations)
 
-def insertFileDir():
-    print("Inserting file dir relations")
-    start_time = time.time()
-
-    run_list = [
-        table_names["dst_listing"]
-    ]
-    
-    for listing_table_name in run_list:
-        # Get all documents with filetype = "d" that are not found in the dir_ID field of the file_dir_relations table
-        listing_dirs = queries.getDirs(listing_table_name)
-        arguments = []
-        for listing_dir in listing_dirs:
-            arguments.append((listing_dir,))
-        submitInParallel(insertFileDirFromDir, arguments)
-        print(f"Finished inserting file dir relations in {time.time() - start_time} seconds")
-    # for argument in arguments:
-    #     insertFileDirFromDir(argument[0])
-
-
-    #############################
-    # Do it using aggregations
-    # queries.insertFileDir(table_names["dst_listing"], table_names["dst_file_dir"])
-
-        
+ 
 
 
 
