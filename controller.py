@@ -31,6 +31,8 @@ import time
 import pandas as pd
 import multiprocessing as mp
 from datetime import datetime
+# importing ObjectId from bson library
+from bson.objectid import ObjectId
 
 dir_listing_path = 'dir_listing/'
 
@@ -75,7 +77,7 @@ def main():
             "Reset DB",
             "Import New Data",
             "Insert File Dir Relations",
-            "Identify broken links"
+            "Identify broken links and add to DB",
             "Remove Listing Entries",
             "Make DB Backup",
             "Restore from Backup"
@@ -200,8 +202,68 @@ def insertFileDir():
     # Do it using aggregations
     # queries.insertFileDir(table_names["dst_listing"], table_names["dst_file_dir"])
 
+
+
 def identifyBrokenLinks():
-    None  
+    links = queries.getLinksNoBroken(table_names["src_listing"])
+    # open link_info file as write
+    f = open(link_info_path, "w")
+    # write header
+    line = "ID\tpoints_to\tbroken_link\n"
+    f.write(line)
+    link_i = 0
+    for link in links:
+        line = ""
+        line += str(link["_id"]) + "\t"
+        line += link["points_to"] + "\t"
+        line += "\n"
+        f.write(line)
+        link_i += 1
+    f.close()
+    if link_i == 0:
+        print("No links to check")
+        return
+    # Check if the link is broken
+    command = f"ssh -J remote.naic.edu -t gpuserv5 'cd {os.path.abspath(modules_path)};python3.7 check_links.py;'"
+    print("Checking links on gpuserv5")
+    
+    subprocess.run(command, shell=True)
+
+    # Read new link_info file
+    new_link_info_path = os.path.join(os.path.dirname(link_info_path), f"new_{os.path.basename(link_info_path)}")
+    f = open(new_link_info_path, "r")
+    i = 0
+    args = []
+    for line in f:
+        if i == 0:
+            i += 1
+            continue
+        if line[-1] == "\n":
+            line = line[:-1]
+        split_line = line.split("\t")
+        ID = split_line[0]
+        broken_link = split_line[-1]
+        update_dict = {
+            "broken?": broken_link
+        }
+        args.append((table_names["src_listing"],ID, update_dict))
+
+            
+        i += 1
+    f.close()
+
+    
+    submitInParallel(queries.updateByID, args)
+    print(f"Updated {i-1} links")
+    # delete both link_info files
+    # os.remove(link_info_path)
+    # os.remove(new_link_info_path)
+
+
+        
+        
+
+
 
 def deleteListingEntries():
     # connect to DB

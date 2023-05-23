@@ -1,7 +1,7 @@
-import pymongo
-
 from Modules import general
 from Modules import global_vars
+# importing ObjectId from bson library
+from bson.objectid import ObjectId
 
 def getDirs(collection_name):
     # connect to database
@@ -27,12 +27,18 @@ def deleteByListingPathsID(table_name, listing_paths_id):
     # delete all files from directory
     collection.delete_many({"listing_paths_ID": listing_paths_id})
 
-# def insertFileDir(listing_table_name, file_dir_table_name):
-#     aggregation = [
-#         {"$match": {"filetype": "d"}},
-#         {"$project": {"_id": 1, "filepath": 1}},
-#         {"$lookup": {
-#             "from": listing_table_name,
+def getLinksNoBroken(table_name):
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[table_name]
+    # Get all documents where filetype is "l" and broken? field is not found
+    links = collection.find({"filetype": "l", "broken?": {"$exists": False}}, {"_id": 1, "filepath": 1, "points_to": 1})
+    return links
 
-#         }}
-#     ]
+def updateByID(table_name, ID, update_dict):
+    # print("Updating " + table_name + " where _id = " + str(ID))
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[table_name]
+
+    collection.update_one({"_id": ObjectId(ID)}, {"$set": update_dict})
+    
