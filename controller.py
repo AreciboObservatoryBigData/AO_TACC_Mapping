@@ -33,6 +33,7 @@ import multiprocessing as mp
 from datetime import datetime
 # importing ObjectId from bson library
 from bson.objectid import ObjectId
+import sys
 
 dir_listing_path = 'dir_listing/'
 
@@ -58,14 +59,24 @@ global_vars.db_name = database_name
 table_names = {
     "src_listing": "src_listing",
     "src_file_dir": "src_file_dir_relations",
-
     "dst_listing": "dst_listing",
     "dst_file_dir": "dst_file_dir_relations",
     "listing_paths": "listing_paths",
     "blacklist": "blacklist_pattern",
-    "blacklist_relations": "src_listing_has_blacklist_pattern"
+    "blacklist_relations": "src_listing_has_blacklist_pattern",
+    "missing_listing_dirs": "missing_listing_dirs"
 
 }
+
+indexes = {
+    table_names["src_listing"]: ["filepath", "filename", "points_to", "filetype"],
+    table_names["dst_listing"]: ["filepath", "filename", "points_to", "filetype"],
+    table_names["src_file_dir"]: ["dir_ID", "file_ID", [("dir_ID", 1),("file_ID", 1), {"unique": True}]],
+    table_names["dst_file_dir"]: ["dir_ID", "file_ID", [("dir_ID", 1),("file_ID", 1), {"unique": True}]],
+
+}
+
+
 global_vars.table_names = table_names
 ################
 
@@ -74,11 +85,15 @@ def main():
     run_dict = {
         "options": [
             "Quit",
+            "Change Current Working DB",
             "Reset DB",
             "Import New Data",
             "Insert File Dir Relations",
             "Identify broken links and add to DB",
+            "Resolve links to ID",
+            "Insert Missing Listing Dirs",
             "Remove Listing Entries",
+            "Reset Specific Collection",
             "Make DB Backup",
             "Restore from Backup"
 
@@ -86,10 +101,14 @@ def main():
         ],
         "functions": [
             quit,
+            changeDB,
             runResets,
             importNewData,
             insertFileDir,
             identifyBrokenLinks,
+            resolveLinksToID,
+            insertMissingListingDirs,
+            resetSpecificCollection,
             deleteListingEntries,
             backupDB,
 
@@ -105,8 +124,16 @@ def main():
         option = menus.get_option_main(run_dict["options"])
         run_dict["functions"][option]()
 
+def changeDB():
+    global database_name
+    print("Write the name of the DB to work on: ")
+    db_name = input()
+    database_name = db_name
+    global_vars.db_name = db_name
+    print(f"Changed DB to {database_name}")
 
 def runResets():
+    global indexes
     # connect to mongoDB, drop all collections
     # connect to DB
     db = general.connectToDB(database_name)
@@ -114,43 +141,16 @@ def runResets():
     for collection in db.list_collection_names():
         db[collection].drop()
     
-    tables = [table_names["src_listing"], table_names["dst_listing"]]
-    indexes = [
-        "filepath",
-        "filename",
-        "points_to",
-        "filetype"
-    ]
-    for table in tables:
-        print(f"Adding indexes to {table}")
+
+    for table in table_names.values():
         collection = db[table]
-        for index in indexes:
-            print(f"Adding index {index}")
-            collection.create_index(index)
-    
-    # Do the same for file_dir_relations but only on the dir_ID field
-    tables = [table_names["src_file_dir"], table_names["dst_file_dir"]]
-    indexes = [
-        "dir_ID"
-    ]
-    for table in tables:
-        print(f"Adding indexes to {table}")
-        collection = db[table]
-        for index in indexes:
-            print(f"Adding index {index}")
-            collection.create_index(index)
-    # Add unique fields
-    index_keys = [
-        ("dir_ID", 1),
-        ("file_ID", 1)
-    ]
-    index_options = {
-        "unique": True
-    }
-    for table in tables:
-        print(f"Adding unique indexes to {table}")
-        collection = db[table]
-        collection.create_index(index_keys, **index_options)
+        for index in indexes[table]:
+            if type(index) == str:
+                collection.create_index(index)
+            else:
+                collection.create_index(index, **index[1])
+
+
 
 def importNewData():
 
@@ -175,34 +175,52 @@ def importNewData():
     files = glob.glob(os.path.join(source_dir_path, '*.txt'))
     # filter out files already in listing_paths
     files = [file for file in files if file not in listing_paths]
+    
     file_db_info.append([files, table_names["src_listing"]])
     import_data.run(file_db_info, database_name, table_names["listing_paths"])
+
+
+def insertFileDirFromDir(listing_dir, listing_table_name, file_dir_table_name):
+    # print(listing_dir)
+    # connect to DB
+    db = general.connectToDB(database_name)
+    # get collection
+    collection = db[file_dir_table_name]
+
+    files = queries.getIDsFromDir(listing_dir, listing_table_name)
+    # make list of dicts to insert
+    file_dir_relations = [{"file_ID": file["_id"], "dir_ID": listing_dir["_id"]} for file in files]
+
+    if file_dir_relations == []:
+        print(f"No files or Directories in {listing_dir}")
+        return
+
+    # insert using insert_many
+    collection.insert_many(file_dir_relations) 
 
 def insertFileDir():
     print("Inserting file dir relations")
     start_time = time.time()
 
     run_list = [
-        table_names["dst_listing"]
+        (table_names["dst_listing"], table_names["dst_file_dir"])
     ]
     
-    for listing_table_name in run_list:
+    for listing_table_name, file_dir_table_name in run_list:
         # Get all documents with filetype = "d" that are not found in the dir_ID field of the file_dir_relations table
         listing_dirs = queries.getDirs(listing_table_name)
         arguments = []
         for listing_dir in listing_dirs:
-            arguments.append((listing_dir,))
+            arguments.append((listing_dir,listing_table_name,file_dir_table_name))
         submitInParallel(insertFileDirFromDir, arguments)
         print(f"Finished inserting file dir relations in {time.time() - start_time} seconds")
-    # for argument in arguments:
-    #     insertFileDirFromDir(argument[0])
+        # for argument in arguments:
+        #     insertFileDirFromDir(argument[0], argument[1], argument[2])
 
 
     #############################
     # Do it using aggregations
     # queries.insertFileDir(table_names["dst_listing"], table_names["dst_file_dir"])
-
-
 
 def identifyBrokenLinks():
     links = queries.getLinksNoBroken(table_names["src_listing"])
@@ -228,7 +246,7 @@ def identifyBrokenLinks():
     print("Checking links on gpuserv5")
     
     subprocess.run(command, shell=True)
-
+    print("Adding \"broken?\" links info to DB")
     # Read new link_info file
     new_link_info_path = os.path.join(os.path.dirname(link_info_path), f"new_{os.path.basename(link_info_path)}")
     f = open(new_link_info_path, "r")
@@ -242,11 +260,11 @@ def identifyBrokenLinks():
             line = line[:-1]
         split_line = line.split("\t")
         ID = split_line[0]
-        broken_link = split_line[-1]
+        broken_link = int(split_line[-1])
         update_dict = {
             "broken?": broken_link
         }
-        args.append((table_names["src_listing"],ID, update_dict))
+        args.append((table_names["src_listing"],ObjectId(ID), update_dict))
 
             
         i += 1
@@ -254,14 +272,81 @@ def identifyBrokenLinks():
 
     
     submitInParallel(queries.updateByID, args)
+    # for arg in args:
+    #     breakpoint()
+    #     queries.updateByID(arg[0], arg[1], arg[2])
     print(f"Updated {i-1} links")
     # delete both link_info files
     # os.remove(link_info_path)
     # os.remove(new_link_info_path)
 
+def resolveLinksToID():
+    print("Resolving links to ID")
+    print("Getting links to resolve")
+    # Get all links in src_listing that are not broken and do not already have points_to_ID
+    links = queries.getLinksNotBrokenNoPointsID(table_names["src_listing"])
+    
+    
+    
+    # for each link, get the ID of the points_to
+    arguments = []
+    links_info = []
+    print("Getting point_IDs of links")
+    for link in links:
+        links_info.append(link)
+        arguments.append((table_names["src_listing"], link["points_to"]))
+    
+    IDs = submitInParallel(queries.getElementIDFromFilepath, arguments)
+    print("Updating links")
 
-        
-        
+    arguments = []
+    for i, result in enumerate(IDs):
+        if result is None:
+            continue
+        ID = links_info[i]["_id"]
+        update_dict = {
+            "points_to_ID": result["_id"]
+        }
+        arguments.append((table_names["src_listing"], ID, update_dict))
+    submitInParallel(queries.updateByID, arguments)
+    print("Finished updating links")
+
+def insertMissingListingDirs():
+    db = general.connectToDB(database_name)
+    print("Getting links to insert")
+    # get all links that are not broken and do not have points_to_ID
+    links = queries.getLinksNotBrokenNoPointsID(table_names["src_listing"])  
+
+    # make insert list
+    insert_list = []
+    print("Making insert list")
+    for link in links:
+        # check if the ID is in the missing_listing_dirs table
+        collection = db[table_names["missing_listing_dirs"]]
+        collection.find_one({"_id": link["_id"]})
+        if collection is None:
+            insert_list.append(link)
+    
+
+    
+    # insert into listing_dirs
+    collection = db[table_names["missing_listing_dirs"]]
+    print("Inserting into missing_listing_dirs")
+    if len(insert_list) > 0:
+        collection.insert_many(insert_list)
+
+def resetSpecificCollection():
+    print("Select which collection to reset")
+    options = [table_names[key] for key in table_names.keys()]
+
+    option = menus.get_option_main(options)
+    collection_name = options[option]
+
+    print(f"Resetting {collection_name}")
+    db = general.connectToDB(database_name)
+    collection = db[collection_name]
+    collection.drop()
+    print(f"Finished {collection_name}") 
 
 
 
@@ -400,8 +485,6 @@ def generate_report():
         finished = options[1][option]()
 
 
-
-
 def insert_new_files():
     print("Inserting new source files")
     # get only files not in finished folder
@@ -528,91 +611,11 @@ def move_folder():
         return
     breakpoint()
 
-def convert_relative_to_absolute():
-    print("Converting points_to to absolute paths")
-    # Get all lines where points_to does not start with /
-    query = queries.get_links_points_to_not_absolute.format(table_name=table_names["src_listing"])
-    results = submitQuery(query, False, True)
-    if len(results) == 0:
-        return
 
-    for row in results:
-        # So that pylance doesn't complain
-        row = dict(row)
-        # change points_to to absolute
-        absolute_path = os.path.abspath(os.path.join(row['filepath'], row['points_to']))
-        row['points_to'] = absolute_path
-        # update row
-        update_query = queries.update_link_points_to.format(table_name=table_names["src_listing"], points_to=row['points_to'], ID=row['ID'])
-        results = submitQuery(update_query, True, True)
 
-def add_broken_links():
-    print("Adding broken links")
-    # Create broken links report
-    # Get all links in src_listing
-    query = queries.get_null_broken_links.format(table_name=table_names["src_listing"])
 
-    src_links = submitQuery(query, False, False)
-    print(f"Fetched {len(src_links)} links to check")
-    # open link_info file as write
-    f = open(link_info_path, "w")
-    # write header
-    line = "ID\tpoints_to\tbroken_link\n"
-    f.write(line)
-    # iterate through links and check if they are broken
-    for i, link_info in enumerate(src_links):
-        line = ""
-        for element in link_info:
-            line += str(element) + "\t"
-        # Take away trailing tab
-        line = line[:-1]
-        # Add endline
-        line += "\n"
-        f.write(line)
-    f.close()
-        
 
-    # Check if the link is broken
-    command = f"ssh -J remote.naic.edu -t transport 'cd {os.path.abspath(modules_path)};python3.7 check_links.py;'"
-    print("Checking links on transport")
-    
-    subprocess.run(command, shell=True)
 
-    # subprocess.call(command, shell=True)
-    # Read new link_info file
-    new_link_info_path = os.path.join(os.path.dirname(link_info_path), f"new_{os.path.basename(link_info_path)}")
-    f = open(new_link_info_path, "r")  
-    print("Updating broken links in DB")
-    batch_size = 10 ** 4
-    
-    # process the file in batches using pandas
-    for df in pd.read_csv(f, sep="\t", chunksize=batch_size):
-        tasks = []
-        # group by 0 and 1, add to tasks
-        tasks.append(tuple(df[df["broken_link"] == 0]["ID"].to_list()))
-        tasks.append(tuple(df[df["broken_link"] == 1]["ID"].to_list()))
-
-        # update src_listing table
-        for i, IDs in enumerate(tasks):
-            if len(IDs) > 0:
-                IDs_str = str(IDs)
-                query = queries.update_broken_by_ID_list.format(table_name=table_names["src_listing"], value=i, ID_list=IDs_str)
-                results = submitQuery(query, True, True)
-
-                
-
-    # delete both link_info files
-    os.remove(link_info_path)
-    os.remove(new_link_info_path)
-
-def resolve_links_to_ID():
-    print("Resolving links to ID")
-    query = queries.update_fk_table_ID.format(table_name=table_names["src_listing"])
-    args = [(query, True, True)]
-    # Do the same for dst_listing
-    query = queries.update_fk_table_ID.format(table_name=table_names["dst_listing"])
-    args.append((query, True, True))
-    submitInParallel(submitQuery, args)
 
     
 
@@ -625,19 +628,6 @@ def resolve_links_to_ID():
 
 
 
-def insertFileDirFromDir(listing_dir):
-        print(listing_dir['filepath'])
-        # connect to DB
-        db = general.connectToDB(database_name)
-        # get collection
-        collection = db[table_names["dst_file_dir"]]
-
-        files = queries.getIDsFromDir(listing_dir, table_names["dst_listing"])
-        # make list of dicts to insert
-        file_dir_relations = [{"file_ID": file["_id"], "dir_ID": listing_dir["_id"]} for file in files]
-
-        # insert using insert_many
-        collection.insert_many(file_dir_relations)
 
  
 
@@ -731,48 +721,42 @@ def submitInParallel(function,args_list):
     
     for arg in args_list:
         p_list.append(pool.apply_async(function, arg))
-
         
     print("\n\n\nAll processes started: " + str(len(p_list)) + "\n\n")
-    last_p_list_len = len(p_list)
     start_time = time.time()
-    while len(p_list) > 0:
-        p_list_len = len(p_list)
+    results = []
+    # fill results with None values
+    for i in range(len(p_list)):
+        results.append(None)
+    
+    finished_plist = []
+    last_finished_plist_len = 0
+    while len(p_list) != len(finished_plist):
+        finished_plist_len = len(finished_plist)
         
-        if p_list_len != last_p_list_len:
-            finished_num = last_p_list_len - p_list_len
-            last_p_list_len = p_list_len
+        if finished_plist_len != last_finished_plist_len:
+            finished_num = finished_plist_len - last_finished_plist_len
+            finished_plist_len = len(finished_plist)
+            left_num = len(p_list) - finished_plist_len
             print(f"Finished {finished_num} processes")
-            print(f"Processes left: {p_list_len}")
+            print(f"Processes left: {len(p_list) - finished_plist_len}")
             print(f"Time elapsed: {time.time() - start_time} seconds")
-            print("Average time per process: " + str((time.time() - start_time)/finished_num) + " seconds")
-            print("Estimated time left: " + str((time.time() - start_time)/finished_num * p_list_len) + " seconds")
+            print("Average time per process: " + str((time.time() - start_time)/left_num) + " seconds")
+            print("Estimated time left: " + str((time.time() - start_time)/finished_num * left_num) + " seconds")
             start_time = time.time()
             
         
         for i, p in enumerate(p_list):
+            if p in finished_plist:
+                continue
             if p.ready():
-                p_list.pop(i)
+                results[i] = p.get()
+                finished_plist.append(p)
         time.sleep(check_time)
     pool.close()
     pool.join()
 
-def submitQuery(query, commit_bool, dictionary = False):
-    global db_connection_info
-    mydb = mysql.connector.connect(
-    host=db_connection_info["host"],
-    user=db_connection_info["user"],
-    passwd=db_connection_info["passwd"],
-    database=db_connection_info["database"],
-    allow_local_infile=db_connection_info["allow_local_infile"])
 
-    cursor = mydb.cursor(dictionary=dictionary)
-
-    cursor.execute(query)
-    results = cursor.fetchall()
-
-    if commit_bool:
-        mydb.commit() 
 
     return results
 

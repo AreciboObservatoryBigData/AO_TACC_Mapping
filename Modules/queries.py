@@ -40,5 +40,20 @@ def updateByID(table_name, ID, update_dict):
     db = general.connectToDB(global_vars.db_name)
     collection = db[table_name]
 
-    collection.update_one({"_id": ObjectId(ID)}, {"$set": update_dict})
-    
+    collection.update_one({"_id": ID}, {"$set": update_dict})
+
+def getLinksNotBrokenNoPointsID(table_name):
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[table_name]
+    # Get all documents where filetype is "l" and broken? field is not found
+    links = collection.find({"filetype": "l", "broken?": 0, "points_to_ID": {"$exists": False}}, {"_id": 1, "filepath": 1, "points_to": 1})
+    return links  
+def getElementIDFromFilepath(table_name, filepath):
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[table_name]
+    # Get all documents where filetype is "l" and broken? field is not found
+    element = collection.find_one({"filepath": filepath}, {"_id": 1})
+    return element
+
