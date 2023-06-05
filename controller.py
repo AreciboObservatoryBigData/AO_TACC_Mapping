@@ -359,7 +359,7 @@ def insertMissingListingDirs():
 
 def getMissingListingDirsInfo():
     print("How many levels in the path do you want the distinct?")
-    levels_num = input()
+    levels_num = int(input())
 
     # Create db connection
     db = general.connectToDB(database_name)
@@ -377,7 +377,7 @@ def getMissingListingDirsInfo():
             '$addFields': {
                 'sliced_string': {
                     '$slice': [
-                        '$split_path', 0, 3
+                        '$split_path', 0, levels_num
                     ]
                 }
             }
@@ -392,10 +392,10 @@ def getMissingListingDirsInfo():
     ]
 
     results = collection.aggregate(aggregation)
-    breakpoint()
+    for result in results:
+        for value in result["distinctValues"]:
+            print("/".join(value))
 
-
-    None
 
 def resetSpecificCollection():
     print("Select which collection to reset")
