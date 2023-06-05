@@ -358,11 +358,47 @@ def insertMissingListingDirs():
         collection.insert_many(insert_list)
 
 def getMissingListingDirsInfo():
+    print("How many levels in the path do you want the distinct?")
+    levels_num = input()
+
+    # Create db connection
+    db = general.connectToDB(database_name)
+    collection = db[table_names["missing_listing_dirs"]]
+    aggregation = [
+        {
+            '$addFields': {
+                'split_path': {
+                    '$split': [
+                        '$points_to', '/'
+                    ]
+                }
+            }
+        }, {
+            '$addFields': {
+                'sliced_string': {
+                    '$slice': [
+                        '$split_path', 0, 3
+                    ]
+                }
+            }
+        }, {
+            '$group': {
+                '_id': '4sliced_string', 
+                'distinctValues': {
+                    '$addToSet': '$sliced_string'
+                }
+            }
+        }
+    ]
+
+    results = collection.aggregate(aggregation)
+    breakpoint()
+
+
     None
 
 def resetSpecificCollection():
     print("Select which collection to reset")
-    breakpoint()
     options = [table_names[key] for key in table_names.keys()]
 
     option = menus.get_option_main(options)
