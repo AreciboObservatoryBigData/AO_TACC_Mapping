@@ -34,6 +34,7 @@ from datetime import datetime
 # importing ObjectId from bson library
 from bson.objectid import ObjectId
 import sys
+import random
 
 dir_listing_path = 'dir_listing/'
 
@@ -71,8 +72,8 @@ table_names = {
 indexes = {
     table_names["src_listing"]: ["filepath", "filename", "points_to", "filetype"],
     table_names["dst_listing"]: ["filepath", "filename", "points_to", "filetype"],
-    table_names["src_file_dir"]: ["dir_ID", "file_ID", [("dir_ID", 1),("file_ID", 1), {"unique": True}]],
-    table_names["dst_file_dir"]: ["dir_ID", "file_ID", [("dir_ID", 1),("file_ID", 1), {"unique": True}]],
+    table_names["src_file_dir"]: ["dir_ID", "file_ID", [[("dir_ID", 1),("file_ID", 1)], {"unique": True}]],
+    table_names["dst_file_dir"]: ["dir_ID", "file_ID", [[("dir_ID", 1),("file_ID", 1)], {"unique": True}]],
 
 }
 
@@ -92,10 +93,12 @@ def main():
             "Identify broken links and add to DB",
             "Resolve links to ID",
             "Insert Missing Listing Dirs",
+            "Get distinct missing dirs info",
             "Remove Listing Entries",
             "Reset Specific Collection",
             "Make DB Backup",
-            "Restore from Backup"
+            "Restore from Backup",
+            "Run Tests"
 
             
         ],
@@ -108,9 +111,12 @@ def main():
             identifyBrokenLinks,
             resolveLinksToID,
             insertMissingListingDirs,
-            resetSpecificCollection,
+            getMissingListingDirsInfo,
             deleteListingEntries,
+            resetSpecificCollection,            
             backupDB,
+            None,
+            runTests
 
 
 
@@ -137,18 +143,22 @@ def runResets():
     # connect to mongoDB, drop all collections
     # connect to DB
     db = general.connectToDB(database_name)
+    print("Dropping all collections")
     # drop all collections
     for collection in db.list_collection_names():
         db[collection].drop()
     
-
+    print("Re-establishing indexes")
     for table in table_names.values():
+        if table not in indexes.keys():
+            continue
         collection = db[table]
+
         for index in indexes[table]:
             if type(index) == str:
                 collection.create_index(index)
             else:
-                collection.create_index(index, **index[1])
+                collection.create_index(index[0], **index[1])
 
 
 
@@ -312,7 +322,20 @@ def resolveLinksToID():
     print("Finished updating links")
 
 def insertMissingListingDirs():
+    print("RESET missing_listing_dirs?")
+    options = ["No", "Yes"]
+    option = menus.get_option_main(options)
+    option = options[option]
+    if option == "Yes":
+        reset = True
+    else:
+        reset = False
+
     db = general.connectToDB(database_name)
+    if reset:
+        print("Resetting missing_listing_dirs")
+        collection = db[table_names["missing_listing_dirs"]]
+        collection.drop()
     print("Getting links to insert")
     # get all links that are not broken and do not have points_to_ID
     links = queries.getLinksNotBrokenNoPointsID(table_names["src_listing"])  
@@ -323,10 +346,9 @@ def insertMissingListingDirs():
     for link in links:
         # check if the ID is in the missing_listing_dirs table
         collection = db[table_names["missing_listing_dirs"]]
-        collection.find_one({"_id": link["_id"]})
-        if collection is None:
+        result = collection.find_one({"_id": link["_id"]})
+        if result is None:
             insert_list.append(link)
-    
 
     
     # insert into listing_dirs
@@ -335,8 +357,12 @@ def insertMissingListingDirs():
     if len(insert_list) > 0:
         collection.insert_many(insert_list)
 
+def getMissingListingDirsInfo():
+    None
+
 def resetSpecificCollection():
     print("Select which collection to reset")
+    breakpoint()
     options = [table_names[key] for key in table_names.keys()]
 
     option = menus.get_option_main(options)
@@ -441,7 +467,21 @@ def restoreDB():
 
     # run command
     subprocess.call(command, shell=True)
-    
+
+def runTests():
+    options = [
+        "Return to main menu",
+        "Test submitParallel"
+    ]
+    functions_list = [
+        None,
+        testParallel,
+    ]
+    option = menus.get_option_main(options)
+    if option == 0:
+        return
+    else:
+        functions_list[option]()
 
 def runInsertFileDir():
     args = [
@@ -712,8 +752,24 @@ def get_listing_dirs(dir_path):
 
     return listing_dirs
 
+def randomReturn(i):
+    # get random number between 0 and 10
+    rand_num = random.randint(1,10)
+    time.sleep(rand_num)
+    return i
+
+def testParallel():
+    arguments = []
+    for i in range(100):
+        arguments.append((i,))
+    results = submitInParallel(randomReturn, arguments)
+    print(results)
+
+
+
 def submitInParallel(function,args_list):
-    check_time = 10
+    check_time = 5
+    # check_time = 1
     p_list = []
     pool = mp.Pool(processes=mp.cpu_count()*20)
 
@@ -733,6 +789,7 @@ def submitInParallel(function,args_list):
     last_finished_plist_len = 0
     while len(p_list) != len(finished_plist):
         finished_plist_len = len(finished_plist)
+
         
         if finished_plist_len != last_finished_plist_len:
             finished_num = finished_plist_len - last_finished_plist_len
@@ -752,7 +809,9 @@ def submitInParallel(function,args_list):
             if p.ready():
                 results[i] = p.get()
                 finished_plist.append(p)
+        last_finished_plist_len = finished_plist_len
         time.sleep(check_time)
+
     pool.close()
     pool.join()
 
