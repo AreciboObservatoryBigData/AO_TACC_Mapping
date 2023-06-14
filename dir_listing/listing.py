@@ -9,9 +9,11 @@ dirs_path = "included_dirs.tsv"
 header = ["filename", "filepath", "filetype", "filesize", "fileAtime", "fileMtime", "fileCtime", "points_to"]
 separator = "\t,;"
 output_file_dir = "Output/src"
+count_file_dir = "count.txt"
 print_num = 250000
 serial = False
 map_bool = True
+verify = False
 
 # verify = True
 
@@ -37,6 +39,8 @@ def main():
     dirs = dirs[1:]
 
     for dir_path in dirs:
+        print("Staring directory: " + dir_path)
+        os.system(f"ls {dir_path} > /dev/null")
         output_file_path = os.path.join(output_file_dir, dir_path.replace("/", "_") + ".txt")
         if os.path.exists(output_file_path):
             print("Output file already exists: " + output_file_path)
@@ -52,7 +56,13 @@ def main():
         output_file.write(line + "\n")
 
 
-        pool = mp.Pool(processes=250)
+        pool = mp.Pool(processes=200)
+
+        # Get file count
+        command = "find " + dir_path + " | wc -l > " + count_file_dir
+        
+        # file_count_p = pool.apply_async(os.system, args=(command,))
+        # breakpoint()
 
         # Get Listing
         listing = os.listdir(dir_path)
@@ -85,6 +95,8 @@ def main():
             ###########################
             else:
                 print("Submitting " + str(len(tasks)) + " tasks")
+                # for task in tasks:
+                #     print(task)
                 results = pool.map(getLine, tasks)
                 tasks = []
                 for result in results:
@@ -106,14 +118,18 @@ def main():
                     if i % print_num == 0:
                         print("Completed " + str(i) + " tasks")
                     i += 1
+        # file_count_p.join()
+        pool.close()
+        # print("Find File Count")
+
         print(i)
-                 
+                
                     
             
         output_file.close()
         
-        # if verify:
-        #     verifyOutput(output_file_path, dir_path)
+        if verify:
+            verifyOutput(output_file_path, dir_path)
 
 
 

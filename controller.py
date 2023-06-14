@@ -65,7 +65,11 @@ table_names = {
     "listing_paths": "listing_paths",
     "blacklist": "blacklist_pattern",
     "blacklist_relations": "src_listing_has_blacklist_pattern",
-    "missing_listing_dirs": "missing_listing_dirs"
+    "missing_listing_dirs": "missing_listing_dirs",
+    "src_in_dst": "src_in_dst",
+    "dst_in_src": "dst_in_src",
+    "src_not_in_dst": "src_not_in_dst",
+    "dst_not_in_src": "dst_not_in_src"
 
 }
 
@@ -96,6 +100,7 @@ def main():
             "Get distinct missing dirs info",
             "Remove Listing Entries",
             "Reset Specific Collection",
+            "Comparisons",
             "Make DB Backup",
             "Restore from Backup",
             "Run Tests"
@@ -113,7 +118,8 @@ def main():
             insertMissingListingDirs,
             getMissingListingDirsInfo,
             deleteListingEntries,
-            resetSpecificCollection,            
+            resetSpecificCollection,  
+            comparisonMenu,          
             backupDB,
             None,
             runTests
@@ -281,7 +287,7 @@ def identifyBrokenLinks():
     f.close()
 
     
-    submitInParallel(queries.updateByID, args)
+    submitInParallel(queries.updateByID, args, get_results=False, check_progress=False)
     # for arg in args:
     #     breakpoint()
     #     queries.updateByID(arg[0], arg[1], arg[2])
@@ -410,6 +416,157 @@ def resetSpecificCollection():
     collection.drop()
     print(f"Finished {collection_name}") 
 
+def comparisonMenu():
+
+    def findFileNamesNotInTACC():
+        options = [
+            "Other",
+            "/share/projdir",
+            "/net/aserv/export/ASERV01"
+        ]
+
+        values = [
+            None,
+            "/share/projdir",
+            "/net/aserv/export/ASERV01"
+            
+        ]
+        option = menus.get_option_main(options)
+
+        if option == 0:
+            # Get starting base path
+            print("Enter base path")
+            base_path = input()
+        else:
+            base_path = values[option]
+
+        # Get all filepaths in src_listing
+        files_info = queries.getDocumentsFromBasePath(base_path, table_names["src_listing"], ["f", "l"])
+        arguments = []
+        print("Started creating arguments")
+        i = 0
+        insert_info = []
+        limit = 100000
+        for result in files_info:
+            # Check if a filename is in TACC
+            filename = result["filename"]
+            insert_info.append({
+                "_id": result["_id"],
+                "filename": filename,
+                "filepath": result["filepath"],
+                "filetype": result["filetype"],
+            })
+            # If it is a link, include the broken flag and the points_to
+            if result["filetype"] == "l":
+                insert_info[-1]["broken?"] = result["broken?"]
+                insert_info[-1]["points_to"] = result["points_to"]
+            arguments.append((filename, table_names["dst_listing"], False))
+            i += 1
+            if i == limit:
+                break
+
+        print("Finished creating arguments")
+        print("Started submitting queries")
+        results = submitInParallel(queries.getAinBByFilename, arguments)
+        print("Finished submitting queries")
+
+        # innsert result into appropriate table using insertMany
+        inserts = []
+        for i,result in enumerate(results):
+            if result != [None]:
+                continue
+
+            inserts.append(insert_info[i])
+        
+        if len(inserts) == 0:
+            print("All files already in TACC")
+            return
+        # Get collection to insert into
+        db = general.connectToDB(database_name)
+        collection = db[table_names["src_not_in_dst"]]
+        # Remove all documents in collection
+        collection.drop()
+        
+        collection.insert_many(inserts)
+        print("Finished inserting into src_not_in_dst")
+            
+
+
+    def compareTwoDirectories():
+        option = input("Compare radar directories? (y/n)")
+        if option == "y":
+            src_path = "/proj/radar"
+            dest_path = "/stornext/ranch_103/ranch/projects/Arecibo-Observatory/Legacy/Sciences/Planetary-Radar"
+
+        elif option == "n":
+            # Ask for src path
+            print("Enter source path")
+            src_path = input()
+            # Ask for dest path
+            print("Enter destination path")
+            dest_path = input()
+
+        print("Getting comparisons")
+        
+        arguments = [
+            (src_path, dest_path, table_names["src_listing"], table_names["dst_listing"]),
+            # (dest_path, src_path, table_names["dst_listing"], table_names["src_listing"]),
+            # (src_path, dest_path, table_names["src_listing"], table_names["dst_listing"], 0),
+            # (dest_path, src_path, table_names["dst_listing"], table_names["src_listing"], 0)
+        ]
+        tables = [
+            table_names["src_in_dst"],
+            # table_names["dst_in_src"],
+            # table_names["src_not_in_dst"],
+            # table_names["dst_not_in_src"]
+        ]
+        queries.getAInBByFilepath(*arguments[0])
+        
+        results = submitInParallel(queries.getAInBByFilepath, arguments)
+
+        breakpoint()
+        # Insert into tables
+        print("Inserting into tables")
+        run_list = []
+        for i, result in enumerate(results):
+            run_list.append((result, tables[i]))
+
+        for run in run_list:
+            print(f"Inserting into {run[1]}")
+            
+            db = general.connectToDB(database_name)
+            collection = db[run[1]]
+            collection.insert_many(run)
+
+
+
+
+        
+
+
+
+
+
+
+    
+    # 0 - return to main menu
+    # 1 - Compare two directories directly
+
+    options = [
+        "Return to main menu",
+        "Find files whose filenames are found nowhere in TACC",
+        "Compare two directories directly"
+    ]
+    functions = [
+        None,
+        findFileNamesNotInTACC,
+        compareTwoDirectories
+    ]
+    option = menus.get_option_main(options)
+    if option == 0:
+        return
+    else:
+        functions[option]()
 
 
 def deleteListingEntries():
@@ -561,27 +718,7 @@ def generate_report():
         finished = options[1][option]()
 
 
-def insert_new_files():
-    print("Inserting new source files")
-    # get only files not in finished folder
-    src_dirs = get_listing_dirs(source_dir_path)
-    dst_dirs = get_listing_dirs(destination_dir_path)
 
-    args = [
-        (source_dir_path, table_names["src_listing"],0),
-        (destination_dir_path, table_names["dst_listing"],1)
-    ]
-
-    submitInParallel(import_data, args)
-
-     # convert points_to to absolute_paths
-    convert_relative_to_absolute()
-
-    # Identify actual broken links
-    add_broken_links()
-
-    # Resolve points_to to ID
-    resolve_links_to_ID()
 
 def delete_file_sql_contents():
     
@@ -649,43 +786,7 @@ def create_mapping():
 
 
 
-def move_folder():
-    # Ask src or dst
-    options = [
-        "Return to main menu",
-        "Source",
-        "Destination"
-    ]
-    print("-----------MOVE FOLDER-----------")
-    option = menus.get_option_main(options)
-    table_name = ""
-    if option == 0:
-        return
-    elif option == 1:
-        table_name = table_names["src_listing"]
-    elif option == 2:
-        table_name = table_names["dst_listing"]
 
-    # Get the filepath to move
-    dir_path = input("Enter the dirpath to move: ")
-
-    # Get where to move it to
-    new_dir_path = input("Enter the new path: ")
-
-    # Check if the old path exists in DB
-    query = queries.get_dir_by_filepath.format(table_name=table_name, filepath=dir_path)
-    
-    mycursor = mydb.cursor(dictionary=True)
-    mycursor.execute(query)
-    myresult = mycursor.fetchall()
-    mycursor.close()
-    if len(myresult) == 0:
-        print("Directory not found")
-        return
-    elif len(myresult) > 1:
-        print("Multiple directories found")
-        return
-    breakpoint()
 
 
 
@@ -803,11 +904,11 @@ def testParallel():
 
 
 
-def submitInParallel(function,args_list):
-    check_time = 5
+def submitInParallel(function,args_list, get_results = True, check_progress = True):
+    check_time = 2
     # check_time = 1
     p_list = []
-    pool = mp.Pool(processes=mp.cpu_count()*20)
+    pool = mp.Pool(processes=mp.cpu_count()*10)
 
     # Monitor the memory usage of a single process, use the average to estimate the amount of processes you can run
     
@@ -831,29 +932,44 @@ def submitInParallel(function,args_list):
             finished_num = finished_plist_len - last_finished_plist_len
             finished_plist_len = len(finished_plist)
             left_num = len(p_list) - finished_plist_len
-            print(f"Finished {finished_num} processes")
+            print(f"\nFinished {finished_num} processes")
             print(f"Processes left: {len(p_list) - finished_plist_len}")
             print(f"Time elapsed: {time.time() - start_time} seconds")
             print("Average time per process: " + str((time.time() - start_time)/left_num) + " seconds")
-            print("Estimated time left: " + str((time.time() - start_time)/finished_num * left_num) + " seconds")
+            print("Estimated time left: " + str((time.time() - start_time)/finished_num * left_num) + " seconds\n")
             start_time = time.time()
             
-        
+        print("Checking processes")
         for i, p in enumerate(p_list):
+            
             if p in finished_plist:
                 continue
-            if p.ready():
-                results[i] = p.get()
-                finished_plist.append(p)
+            if check_progress:
+                if p.ready():
+                    if get_results:
+                        results[i] = p.get()
+                    finished_plist.append(p)
+            else:
+                if get_results:
+                    results[i] = p.get()
+                    finished_plist.append(p)
+                else:
+                    p.get()
+                    finished_plist.append(p)
+            if len(finished_plist) % 10000 == 0:
+                print("Still checking, but finished " + str(len(finished_plist)) + " processes")
         last_finished_plist_len = finished_plist_len
+        print("Sleeping for " + str(check_time) + " seconds")
         time.sleep(check_time)
 
     pool.close()
     pool.join()
 
 
-
-    return results
+    if get_results:
+        return results
+    else:
+        return None
 
 
 

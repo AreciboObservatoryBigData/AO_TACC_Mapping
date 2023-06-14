@@ -57,3 +57,84 @@ def getElementIDFromFilepath(table_name, filepath):
     element = collection.find_one({"filepath": filepath}, {"_id": 1})
     return element
 
+def getAInBByFilepath(src_base_path, dst_base_path, src_name, dst_name, eq_value = 1):
+
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    src_collection = db[src_name]
+    if src_base_path[-1] == "/":
+        src_base_path = src_base_path[:-1]
+    if dst_base_path[-1] == "/":
+        dst_base_path = dst_base_path[:-1]
+    aggregation = [
+        {
+            '$addFields': {
+                'no_base': {
+                    '$replaceOne': {
+                        'input': '$filepath', 
+                        'find': src_base_path, 
+                        'replacement': ''
+                    }
+                }
+            }
+        }, {
+            '$addFields': {
+                'lookup_path': {
+                    '$concat': [
+                        dst_base_path, '$no_base'
+                    ]
+                }
+            }
+        }, {
+            '$lookup': {
+                'from': dst_name, 
+                'localField': 'lookup_path', 
+                'foreignField': 'filepath', 
+                'as': 'result'
+            }
+        }, {
+            '$addFields': {
+                'results_size': {
+                    '$size': '$result'
+                }
+            }
+        }, {
+            '$match': {
+                'results_size': {
+                    '$eq': eq_value
+                }
+            }
+        }
+    ]
+    breakpoint()
+    src_in_dst = src_collection.aggregate(aggregation)
+    # Turn cursor into list
+    src_in_dst = list(src_in_dst)
+    return src_in_dst
+
+    
+def getDocumentsFromBasePath(base_path, listing_collection_name, filetypes = ["f"]):
+    if base_path[-1] == "/":
+        base_path = base_path[:-1]
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[listing_collection_name]
+    # Get all documents where filepath starts with base_path
+    documents = collection.find({"filepath": {"$regex": "^" + base_path + "/"}, "filetype" : {"$in": filetypes}})
+    return documents
+
+
+
+def getAinBByFilename(filename, listing_collection_name, return_all = True, filetypes = ["f"]):
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[listing_collection_name]
+    # Get all documents where filepath starts with base_path
+    if return_all:
+        documents = collection.find({"filename": filename, "filetype" : {"$in": filetypes}})
+        documents = list(documents)
+    else:
+        documents = collection.find_one({"filename": filename, "filetype" : {"$in": filetypes}})
+        documents = [documents]
+    return documents
+    
