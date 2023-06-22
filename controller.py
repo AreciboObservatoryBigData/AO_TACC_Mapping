@@ -25,6 +25,7 @@ from Modules import make_blacklist
 from Modules import global_vars
 from Modules import general
 from Modules import import_data
+from Modules import apply_filter as m_apply_filter
 import shutil
 import subprocess
 import time
@@ -69,7 +70,13 @@ table_names = {
     "src_in_dst": "src_in_dst",
     "dst_in_src": "dst_in_src",
     "src_not_in_dst": "src_not_in_dst",
-    "dst_not_in_src": "dst_not_in_src"
+    "dst_not_in_src": "dst_not_in_src",
+
+    # apply_filters_dbs
+    "blacklist": "blacklist",
+    "whitelist": "whitelist",
+    "src_whitelist_filtered": "src_whitelist_filtered",
+    "src_final_filtered": "src_final_filtered"
 
 }
 
@@ -96,11 +103,12 @@ def main():
             "Insert File Dir Relations",
             "Identify broken links and add to DB",
             "Resolve links to ID",
+            "Apply Filter",
             "Insert Missing Listing Dirs",
-            "Get distinct missing dirs info",
+            "Comparisons",
+            "Analysis",
             "Remove Listing Entries",
             "Reset Specific Collection",
-            "Comparisons",
             "Make DB Backup",
             "Restore from Backup",
             "Run Tests"
@@ -115,11 +123,13 @@ def main():
             insertFileDir,
             identifyBrokenLinks,
             resolveLinksToID,
+            apply_filter,
             insertMissingListingDirs,
-            getMissingListingDirsInfo,
+            comparisonMenu, 
+            analysisMenu,
             deleteListingEntries,
             resetSpecificCollection,  
-            comparisonMenu,          
+                     
             backupDB,
             None,
             runTests
@@ -327,6 +337,12 @@ def resolveLinksToID():
     submitInParallel(queries.updateByID, arguments)
     print("Finished updating links")
 
+def apply_filter():
+
+    # Run filter with Database_name
+    m_apply_filter.run(database_name)
+
+
 def insertMissingListingDirs():
     print("RESET missing_listing_dirs?")
     options = ["No", "Yes"]
@@ -363,44 +379,7 @@ def insertMissingListingDirs():
     if len(insert_list) > 0:
         collection.insert_many(insert_list)
 
-def getMissingListingDirsInfo():
-    print("How many levels in the path do you want the distinct?")
-    levels_num = int(input())
 
-    # Create db connection
-    db = general.connectToDB(database_name)
-    collection = db[table_names["missing_listing_dirs"]]
-    aggregation = [
-        {
-            '$addFields': {
-                'split_path': {
-                    '$split': [
-                        '$points_to', '/'
-                    ]
-                }
-            }
-        }, {
-            '$addFields': {
-                'sliced_string': {
-                    '$slice': [
-                        '$split_path', 0, levels_num
-                    ]
-                }
-            }
-        }, {
-            '$group': {
-                '_id': '4sliced_string', 
-                'distinctValues': {
-                    '$addToSet': '$sliced_string'
-                }
-            }
-        }
-    ]
-
-    results = collection.aggregate(aggregation)
-    for result in results:
-        for value in result["distinctValues"]:
-            print("/".join(value))
 
 
 def resetSpecificCollection():
@@ -422,13 +401,17 @@ def comparisonMenu():
         options = [
             "Other",
             "/share/projdir",
-            "/net/aserv/export/ASERV01"
+            "/net/aserv/export/ASERV01",
+            "/net/aserv/export/ASERV00",
+            "/net/vstor/export/vstor1"
         ]
 
         values = [
             None,
             "/share/projdir",
-            "/net/aserv/export/ASERV01"
+            "/net/aserv/export/ASERV01",
+            "/net/aserv/export/ASERV00",
+            "/net/vstor/export/vstor1"
             
         ]
         option = menus.get_option_main(options)
@@ -446,7 +429,7 @@ def comparisonMenu():
         print("Started creating arguments")
         i = 0
         insert_info = []
-        limit = 100000
+        limit = 1000000
         for result in files_info:
             # Check if a filename is in TACC
             filename = result["filename"]
@@ -541,17 +524,6 @@ def comparisonMenu():
 
 
 
-        
-
-
-
-
-
-
-    
-    # 0 - return to main menu
-    # 1 - Compare two directories directly
-
     options = [
         "Return to main menu",
         "Find files whose filenames are found nowhere in TACC",
@@ -561,6 +533,74 @@ def comparisonMenu():
         None,
         findFileNamesNotInTACC,
         compareTwoDirectories
+    ]
+    option = menus.get_option_main(options)
+    if option == 0:
+        return
+    else:
+        functions[option]()
+
+def analysisMenu():
+    
+    def analyzeByDirectoryLevel():
+        # Get which collection to analyze
+        print("Which collection do you want to analyze?")
+        options = [
+            "Return to main menu",
+            table_names["src_not_in_dst"],
+        ]
+        option = menus.get_option_main(options)
+        if option == 0:
+            return
+        else:
+            collection_name = options[option]
+        
+        print("How many levels in the path do you want the distinct?")
+        levels_num = int(input())
+
+        # Create db connection
+        db = general.connectToDB(database_name)
+        collection = db[collection_name]
+        aggregation = [
+            {
+                '$addFields': {
+                    'split_path': {
+                        '$split': [
+                            '$filepath', '/'
+                        ]
+                    }
+                }
+            }, {
+                '$addFields': {
+                    'sliced_string': {
+                        '$slice': [
+                            '$split_path', 0, levels_num
+                        ]
+                    }
+                }
+            }, {
+                '$group': {
+                    '_id': 'sliced_string', 
+                    'distinctValues': {
+                        '$addToSet': '$sliced_string'
+                    }
+                }
+            }
+        ]
+
+        results = collection.aggregate(aggregation)
+        for result in results:
+            for value in result["distinctValues"]:
+                print("/".join(value))
+        
+    print("Select which analysis to perform")
+    options = [
+        "Return to main menu",
+        "Analyze by Directory Level"
+    ]
+    functions = [
+        None,
+        analyzeByDirectoryLevel
     ]
     option = menus.get_option_main(options)
     if option == 0:
@@ -684,38 +724,6 @@ def runInsertFileDir():
 
     submitInParallel(insert_file_dir, args)
 
-def generate_report():
-    print("--------Generate Report--------")
-    def end_loop():
-        
-        return True
-
-    def dirs_missing_report():
-        # get 10 rows of missing_dirs
-        query = queries.get_missing_included_files.format(table_name = table_names["src_listing"])
-        myresult = submitQuery(query, False, True)
-
-        # turn dictionary to dataframe
-        df = pd.DataFrame(myresult)
-        print(df)
-
-        return False
-
-
-
-    options = [[
-        "Back to Main Menu",
-        "Get src dirs missing, using points_to"
-    ],
-    [
-        end_loop,
-        dirs_missing_report
-    ]
-    ]   
-    finished = False
-    while not finished: 
-        option = menus.get_option_main(options[0])
-        finished = options[1][option]()
 
 
 
