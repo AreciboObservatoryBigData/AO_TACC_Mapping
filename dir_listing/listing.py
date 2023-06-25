@@ -71,6 +71,7 @@ def main():
 
         tasks = listing[:]
         i = 1
+        scanned_link_directory_paths = set()
         while len(tasks) > 0:
             
             # TO run in serial:
@@ -83,7 +84,12 @@ def main():
                     continue
                 output_file.write(line + "\n")
 
-                if filetype == "d":
+                if filetype == "d" or filetype == "ld":
+
+                    if filetype == "ld":
+                        # If it is a link to a directory, check that the point_to hasn't already been scanned, 
+                        # otherwise it could be a looping link
+                        breakpoint()
                     
                     listing = os.listdir(filepath)
                     listing = [os.path.join(filepath, item) for item in listing]
