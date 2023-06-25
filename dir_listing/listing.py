@@ -71,7 +71,11 @@ def main():
 
         tasks = listing[:]
         i = 1
-        scanned_link_directory_paths = set()
+        # Keep track of resolved path of the ld and the points_to of the ld
+        # if points_to has already been scanned, check if the resolved_path is a subpath of the current path
+        # if it is, then it is a looping link
+        scanned_ld_paths = []
+        scanned_ld_points_to = []
         while len(tasks) > 0:
             
             # TO run in serial:
@@ -85,15 +89,22 @@ def main():
                 output_file.write(line + "\n")
 
                 if filetype == "d" or filetype == "ld":
-
+                    loop_bool = False
                     if filetype == "ld":
-                        # If it is a link to a directory, check that the point_to hasn't already been scanned, 
-                        # otherwise it could be a looping link
-                        breakpoint()
-                    
-                    listing = os.listdir(filepath)
-                    listing = [os.path.join(filepath, item) for item in listing]
-                    tasks.extend(listing)
+                        
+                        points_to = line.split(separator)[header.index("points_to")]
+                        loop_bool = loopCheck(filepath, points_to, scanned_ld_paths, scanned_ld_points_to)
+                        # if its not a loop, then add the points_to and filepath to the scanned lists
+                        if not loop_bool:
+                            scanned_ld_paths.append(filepath)
+                            scanned_ld_points_to.append(points_to)
+                        # print(f"points_to:\n{scanned_ld_points_to}")
+                        # print(f"filepath:\n{scanned_ld_paths}")
+                        # breakpoint()
+                    if not loop_bool:
+                        listing = os.listdir(filepath)
+                        listing = [os.path.join(filepath, item) for item in listing]
+                        tasks.extend(listing)
 
                 if i % print_num == 0:
                     print("Completed " + str(i) + " tasks")
@@ -270,8 +281,16 @@ def verifyOutput(output_file_path, dir_path):
         if not found:
             print("Could not find line: " + line)
             sys.exit(1)
-        
 
+def loopCheck(filepath, points_to, scanned_ld_paths, scanned_ld_points_to):
+    
+    # #  Check if filepath is in scanned_ld_points_to
+    if points_to in scanned_ld_points_to:
+        # If it is, then check if any element in scanned_ld_paths is a substring of filepath
+        for scanned_ld_path in scanned_ld_paths:
+            if scanned_ld_path in filepath:
+                return True
+    return False
 
 
 
