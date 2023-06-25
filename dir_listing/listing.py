@@ -11,7 +11,7 @@ separator = "\t,;"
 output_file_dir = "Output/src"
 count_file_dir = "count.txt"
 print_num = 250000
-serial = True
+serial = False
 map_bool = True
 verify = False
 
@@ -123,13 +123,22 @@ def main():
                     output_file.write(line + "\n")
 
 
-                    if filetype == "d":
-
-                        listing = os.listdir(filepath)
-
+                    if filetype == "d" or filetype == "ld":
+                    loop_bool = False
+                    if filetype == "ld":
                         
+                        points_to = line.split(separator)[header.index("points_to")]
+                        loop_bool = loopCheck(filepath, points_to, scanned_ld_paths, scanned_ld_points_to)
+                        # if its not a loop, then add the points_to and filepath to the scanned lists
+                        if not loop_bool:
+                            scanned_ld_paths.append(filepath)
+                            scanned_ld_points_to.append(points_to)
+                        # print(f"points_to:\n{scanned_ld_points_to}")
+                        # print(f"filepath:\n{scanned_ld_paths}")
+                        # breakpoint()
+                    if not loop_bool:
+                        listing = os.listdir(filepath)
                         listing = [os.path.join(filepath, item) for item in listing]
-
                         tasks.extend(listing)
 
                     if i % print_num == 0:
