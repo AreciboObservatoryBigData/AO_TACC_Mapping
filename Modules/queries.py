@@ -137,4 +137,50 @@ def getAinBByFilename(filename, listing_collection_name, return_all = True, file
         documents = collection.find_one({"filename": filename, "filetype" : {"$in": filetypes}})
         documents = [documents]
     return documents
-    
+
+def getKeywordMatches(collection_name, keyword, limit = 20):
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[collection_name]
+    find_dict = {"filepath": {"$regex": f".*{keyword}.*"}}
+    # Get all documents where filepath starts with base_path
+    documents = collection.find(find_dict).limit(limit)
+    return documents
+
+def getAnalysisByDistinctDirectories(collection_name, levels_num, match_stage = {}):
+    # Create db connection
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[collection_name]
+    aggregation = [
+        {
+            "$match": match_stage
+
+        },
+        {
+            '$addFields': {
+                'split_path': {
+                    '$split': [
+                        '$filepath', '/'
+                    ]
+                }
+            }
+        }, {
+            '$addFields': {
+                'sliced_string': {
+                    '$slice': [
+                        '$split_path', 0, levels_num
+                    ]
+                }
+            }
+        }, {
+            '$group': {
+                '_id': 'sliced_string', 
+                'distinctValues': {
+                    '$addToSet': '$sliced_string'
+                }
+            }
+        }
+    ]
+
+    results = collection.aggregate(aggregation)
+    return results

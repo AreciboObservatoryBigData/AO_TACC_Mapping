@@ -6,12 +6,12 @@ import string
 import pandas as pd
 import sys
 dirs_path = "included_dirs.tsv"
-header = ["filename", "filepath", "filetype", "filesize", "fileAtime", "fileMtime", "fileCtime", "points_to"]
+header = ["filename", "filepath", "filetype", "filesize", "fileAtime", "fileMtime", "fileCtime", "points_to", "dir_name"]
 separator = "\t,;"
 output_file_dir = "Output/src"
 count_file_dir = "count.txt"
 print_num = 250000
-serial = False
+serial = True
 map_bool = True
 verify = False
 
@@ -177,11 +177,22 @@ def getLine(filepath):
         
     if dict_line["filetype"] == "l":
         link_info = os.lstat(filepath)
+        
         dict_line["filesize"] = link_info.st_size
         dict_line["points_to"] = os.readlink(filepath)
+        
+        # Now that we know where it points to, check if points to file or directory and assign lf ld or ll, depending on which
+        # if os.path.
         # If points_to is a relative path, make it absolute
         if dict_line["points_to"][0] != "/":
             dict_line["points_to"] = os.path.join(os.path.dirname(filepath), dict_line["points_to"])
+        # Here the link points_to is in absolute path form
+        if os.path.isfile(dict_line["points_to"]):
+            dict_line["filetype"] = "lf"
+        elif os.path.isdir(dict_line["points_to"]):
+            dict_line["filetype"] = "ld"
+        elif os.path.isdir(dict_line["points_to"]):
+            dict_line["filetype"] = "ll"
         points_to_filepath = dict_line["points_to"]
         dict_line["points_to"] = ""
         for char in points_to_filepath:
@@ -197,7 +208,9 @@ def getLine(filepath):
         dict_line["fileMtime"] = os.path.getmtime(filepath)
         dict_line["fileCtime"] = os.path.getctime(filepath)
     
-
+    # Add base_dir
+    dict_line["dir_name"] = os.path.dirname(dict_line["filepath"])
+    
     # make line
     line = ""
     line += str(dict_line[header[0]])

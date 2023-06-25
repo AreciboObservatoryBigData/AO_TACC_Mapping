@@ -64,8 +64,6 @@ table_names = {
     "dst_listing": "dst_listing",
     "dst_file_dir": "dst_file_dir_relations",
     "listing_paths": "listing_paths",
-    "blacklist": "blacklist_pattern",
-    "blacklist_relations": "src_listing_has_blacklist_pattern",
     "missing_listing_dirs": "missing_listing_dirs",
     "src_in_dst": "src_in_dst",
     "dst_in_src": "dst_in_src",
@@ -73,8 +71,7 @@ table_names = {
     "dst_not_in_src": "dst_not_in_src",
 
     # apply_filters_dbs
-    "blacklist": "blacklist",
-    "whitelist": "whitelist",
+    "filters": "filters",
     "src_whitelist_filtered": "src_whitelist_filtered",
     "src_final_filtered": "src_final_filtered"
 
@@ -105,6 +102,7 @@ def main():
             "Resolve links to ID",
             "Apply Filter",
             "Insert Missing Listing Dirs",
+            "Search Keywords",
             "Comparisons",
             "Analysis",
             "Remove Listing Entries",
@@ -125,6 +123,7 @@ def main():
             resolveLinksToID,
             apply_filter,
             insertMissingListingDirs,
+            searchKeywords,
             comparisonMenu, 
             analysisMenu,
             deleteListingEntries,
@@ -395,6 +394,87 @@ def resetSpecificCollection():
     collection.drop()
     print(f"Finished {collection_name}") 
 
+def searchKeywords():
+    print("Please select a collection to search")
+
+    options = [
+        table_names["src_listing"],
+        table_names["dst_listing"],
+        table_names["src_in_dst"],
+        table_names["dst_in_src"],
+        table_names["src_not_in_dst"],
+        table_names["dst_not_in_src"],
+        table_names["src_whitelist_filtered"],
+        table_names["src_final_filtered"]
+    ]
+    option = menus.get_option_main(options)
+    collection_name = options[option]
+    keyword = input("Enter keyword to search for:\n")
+    done = False
+    while not done:
+        print("Menu:")
+        options = [
+            "Exit",
+            "Set collection",
+            "Set keyword",
+            "Seach all keyword matches",
+            "Search Top 20 keyword matches",
+            "Search distinct directories of keyword matches",
+            "Search all keyword matches and export to file",
+            "Search keywords by list and export to file"
+        ]
+        option = menus.get_option_main(options)
+        if option == 0:
+            done = True
+        elif option == 1:
+            collection_name = input("Enter collection name:\n")
+        elif option == 2:
+            keyword = input("Enter keyword to search for:\n")
+        elif option == 3:
+            results = queries.getKeywordMatches(collection_name, keyword, limit = 9999999)
+            for result in results:
+                print(result["filepath"])
+        elif option == 4:
+            results = queries.getKeywordMatches(collection_name, keyword)
+            for result in results:
+                print(result["filepath"])
+        elif option == 5:
+            levels_num = input("Enter number of levels to search:\n")
+            levels_num = int(levels_num)
+            match_stage = {"filepath": {"$regex": ".*" + keyword + ".*"}}
+            restuls = queries.getAnalysisByDistinctDirectories(collection_name, levels_num, match_stage)
+            for result in results:
+                for value in result["distinctValues"]:
+                    print("/".join(value))
+        elif option == 6:
+            output_dir_path = input("Enter output dir path:\n")
+            print("Searching all keyword matches")
+            results = queries.getKeywordMatches(collection_name, keyword, limit = 9999999)
+            output_file_path = os.path.join(output_dir_path, f"{collection_name}_{keyword}.txt")
+            print(f"Writing to {output_file_path}")
+            with open(output_file_path, "w") as f:
+                for result in results:
+                    f.write(result["filepath"] + "\n")
+        elif option == 7:
+            input_file_path = input("Enter input file path:\n")
+            output_dir_path = input("Enter output dir path:\n")
+            print("Searching keywords by list")
+            with open(input_file_path, "r") as f:
+                keywords = f.readlines()
+            keywords = [keyword.strip() for keyword in keywords]
+            for i,keyword in enumerate(keywords):
+                print(f"Searching for {keyword}")
+                results = queries.getKeywordMatches(collection_name, keyword, limit = 9999999)
+                output_file_path = os.path.join(output_dir_path, f"{str(i+1)}_{collection_name}_{keyword}.txt")
+                print(f"Writing to {output_file_path}")
+                with open(output_file_path, "w") as f:
+                    for result in results:
+                        f.write(result["filepath"] + "\n")
+
+
+
+
+
 def comparisonMenu():
 
     def findFileNamesNotInTACC():
@@ -429,7 +509,7 @@ def comparisonMenu():
         print("Started creating arguments")
         i = 0
         insert_info = []
-        limit = 1000000
+        limit = 100000000
         for result in files_info:
             # Check if a filename is in TACC
             filename = result["filename"]
@@ -526,7 +606,7 @@ def comparisonMenu():
 
     options = [
         "Return to main menu",
-        "Find files whose filenames are found nowhere in TACC",
+        "Find files in src whose filenames are found nowhere in dst",
         "Compare two directories directly"
     ]
     functions = [
