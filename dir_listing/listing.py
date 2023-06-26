@@ -5,8 +5,9 @@ import time
 import string
 import pandas as pd
 import sys
+import subprocess
 dirs_path = "included_dirs.tsv"
-header = ["filename", "filepath", "filetype", "filesize", "fileAtime", "fileMtime", "fileCtime", "points_to", "dir_name"]
+header = ["filename", "filepath", "filetype", "filesize", "fileAtime", "fileMtime", "fileCtime", "points_to", "dir_name", "broken?"]
 separator = "\t,;"
 output_file_dir = "Output/src"
 count_file_dir = "count.txt"
@@ -167,6 +168,8 @@ def getLine(filepath):
     # make dictionary slowly
     dict_line = {}
 
+    # set default value for broken?
+    dict_line["broken?"] = ""
 
 
     
@@ -206,6 +209,8 @@ def getLine(filepath):
         
         dict_line["filesize"] = link_info.st_size
         dict_line["points_to"] = os.readlink(filepath)
+        # Check if its broken
+        dict_line["broken?"] = check_link(dict_line["points_to"])
         
         # Now that we know where it points to, check if points to file or directory and assign lf ld or ll, depending on which
         # if os.path.
@@ -301,6 +306,14 @@ def loopCheck(filepath, points_to, scanned_ld_paths, scanned_ld_points_to):
                 return True
     return False
 
+def check_link(link_path):
+    
+    command = f"test -e '{link_path}'"
+    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode == 0:
+        return 0
+    else:
+        return 1
 
 
 

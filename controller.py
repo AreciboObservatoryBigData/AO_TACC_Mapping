@@ -479,6 +479,7 @@ def comparisonMenu():
 
     def findFileNamesNotInTACC():
         options = [
+            "Exit",
             "Other",
             "/share/projdir",
             "/net/aserv/export/ASERV01",
@@ -488,15 +489,18 @@ def comparisonMenu():
 
         values = [
             None,
+            None,
             "/share/projdir",
             "/net/aserv/export/ASERV01",
             "/net/aserv/export/ASERV00",
-            "/net/vstor/export/vstor1"
+            "/net/vstor/export/vstor1",
+            "/share/pdata.*"
             
         ]
         option = menus.get_option_main(options)
-
         if option == 0:
+            return
+        elif option == 1:
             # Get starting base path
             print("Enter base path")
             base_path = input()
@@ -603,22 +607,22 @@ def comparisonMenu():
 
 
 
-
-    options = [
-        "Return to main menu",
-        "Find files in src whose filenames are found nowhere in dst",
-        "Compare two directories directly"
-    ]
-    functions = [
-        None,
-        findFileNamesNotInTACC,
-        compareTwoDirectories
-    ]
-    option = menus.get_option_main(options)
-    if option == 0:
-        return
-    else:
-        functions[option]()
+    while True:
+        options = [
+            "Return to main menu",
+            "Find files in src whose filenames are found nowhere in dst",
+            "Compare two directories directly"
+        ]
+        functions = [
+            None,
+            findFileNamesNotInTACC,
+            compareTwoDirectories
+        ]
+        option = menus.get_option_main(options)
+        if option == 0:
+            return
+        else:
+            functions[option]()
 
 def analysisMenu():
     
