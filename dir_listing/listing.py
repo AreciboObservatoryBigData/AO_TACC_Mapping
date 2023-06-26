@@ -308,7 +308,7 @@ def loopCheck(filepath, points_to, scanned_ld_paths, scanned_ld_points_to):
 
 def check_link(link_path):
     
-    command = f"test -e '{link_path}'"
+    command = "test -e '" + link_path + "'"
     result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode == 0:
         return 0
