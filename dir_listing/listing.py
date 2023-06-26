@@ -41,7 +41,7 @@ def main():
 
     for dir_path in dirs:
         print("Staring directory: " + dir_path)
-        os.system(f"ls {dir_path} > /dev/null")
+        os.system("ls "+ dir_path + " > /dev/null")
         output_file_path = os.path.join(output_file_dir, dir_path.replace("/", "_") + ".txt")
         if os.path.exists(output_file_path):
             print("Output file already exists: " + output_file_path)
