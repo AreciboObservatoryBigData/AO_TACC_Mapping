@@ -12,13 +12,14 @@ def run(files_db_info, db_name, listing_paths_collection_name):
     
     
     for info in files_db_info:
-        pool = mp.Pool(processes=mp.cpu_count()*10)
+        
         # first element is a list of files
         files = info[0]
         # second element is the collection name
         collection_name = info[1]
         
         for file in files:
+            pool = mp.Pool(processes=mp.cpu_count()*5)
             print("Processing " + file)
             # Add the file to the listing_paths database and get the id
             db = general.connectToDB(db_name)
@@ -56,11 +57,12 @@ def run(files_db_info, db_name, listing_paths_collection_name):
                 dict_line["listing_paths_ID"] = listing_paths_id
                 submissions.append(dict_line)
 
-                if memory_stats.percent > 90:
+                if memory_stats.percent > 95:
                     print("Memory usage is too high")
                     # Waiting for memory to be below 80%
-                    while memory_stats.percent > 80:
-                        time.sleep(1)
+                    while memory_stats.percent > 90:
+                        print(memory_stats.percent)
+                        time.sleep(5)
                         memory_stats = psutil.virtual_memory()
                     print("Memory usage is now below 80%")
 
@@ -85,8 +87,8 @@ def run(files_db_info, db_name, listing_paths_collection_name):
                 pool.apply_async(submitInserts, args=(submissions,db_name,collection_name))
             print(i)
             submissions = []
-        pool.close()
-        pool.join()
+            pool.close()
+            pool.join()
         
         
 

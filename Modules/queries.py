@@ -113,15 +113,78 @@ def getAInBByFilepath(src_base_path, dst_base_path, src_name, dst_name, eq_value
     return src_in_dst
 
     
-def getDocumentsFromBasePath(base_path, listing_collection_name, filetypes = ["f"]):
-    if base_path[-1] == "/":
-        base_path = base_path[:-1]
+def getANotinBByFilenameFiltered(regex, A_collection_name, B_collection_name, filetypes = ["f", "l", "lf"]):
+    
     # connect to database
     db = general.connectToDB(global_vars.db_name)
-    collection = db[listing_collection_name]
-    # Get all documents where filepath starts with base_path
-    documents = collection.find({"filepath": {"$regex": "^" + base_path + "/"}, "filetype" : {"$in": filetypes}})
-    return documents
+    collection = db[A_collection_name]
+    aggregation = [{
+        "$match":{
+            "$and":[
+                {"filepath": {"$regex": regex}},
+                {"filetype" : {"$in": filetypes}}
+            ]
+        }
+    },
+    { 
+        "$group": { 
+            "_id": "$filename", 
+            "group_results":{
+                "$push":{
+                    "_id": "$_id",
+                    "filename": "$filename",
+                    "filepath": "$filepath",
+                    "filetype": "$filetype",
+                    "filesize": "$filesize", 
+                    "dir_name": "$dir_name",
+                }}
+         } },
+    {
+        "$lookup": {
+        "from": B_collection_name,
+        "localField": "_id",
+        "foreignField": "filename",
+        "as": "lookupResult"
+        }
+    },
+    {
+        "$match":{"lookupResult": {"$eq": []}}
+    }
+
+    ]
+    documents = collection.aggregate(aggregation)
+    documents_list = []
+    print("Creating paths document list")
+    i = 1
+    for document in documents:
+        documents_list.extend(document["group_results"])
+        i += 1    
+    print(f"Total results: {i}")
+
+
+    return documents_list
+
+def getDistinctValues(collection_name, field_name):
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[collection_name]
+
+    aggregation = [
+        {
+            "$group":{
+                "_id": f"${field_name}"
+            }
+        },{
+            "$project":{
+                "_id": 0,
+                field_name: "$_id"
+            }
+        }
+    ]
+    results = collection.aggregate(aggregation)
+
+    return results
+
+
 
 
 

@@ -5,18 +5,9 @@
 # Arecibo Observatory Big Data  
 
 # TODO:
-# - Add src_listing option
-# - Add, get broken_links
-# - Add missing_listing_dirs option
-# All of above in listing options
-# - Add option to resolve links to ID (Added but needs better testing before release)
-# - Add option to move folders in sql DB using like
-# - Add option to move files in sql DB using like
-# - Add option to generate reports
 
-import pymongo
 
-import mysql.connector
+
 import os
 import glob
 from Modules import queries
@@ -26,6 +17,7 @@ from Modules import global_vars
 from Modules import general
 from Modules import import_data
 from Modules import apply_filter as m_apply_filter
+from Modules import mapping as src_dst_mapping
 import shutil
 import subprocess
 import time
@@ -98,9 +90,9 @@ def main():
             "Reset DB",
             "Import New Data",
             "Insert File Dir Relations",
-            "Identify broken links and add to DB",
             "Resolve links to ID",
             "Apply Filter",
+            "Make Mapping",
             "Insert Missing Listing Dirs",
             "Search Keywords",
             "Comparisons",
@@ -119,9 +111,9 @@ def main():
             runResets,
             importNewData,
             insertFileDir,
-            identifyBrokenLinks,
             resolveLinksToID,
             apply_filter,
+            make_mapping,
             insertMissingListingDirs,
             searchKeywords,
             comparisonMenu, 
@@ -341,6 +333,8 @@ def apply_filter():
     # Run filter with Database_name
     m_apply_filter.run(database_name)
 
+def make_mapping():
+    src_dst_mapping.run(database_name)
 
 def insertMissingListingDirs():
     print("RESET missing_listing_dirs?")
@@ -482,18 +476,19 @@ def comparisonMenu():
             "Exit",
             "Other",
             "/share/projdir",
-            "/net/aserv/export/ASERV01",
-            "/net/aserv/export/ASERV00",
-            "/net/vstor/export/vstor1"
+            "/share/aserv01",
+            "/share/aserv00",
+            "/net/vstor/export/vstor1",
+            "/share/pdata*"
         ]
 
         values = [
             None,
             None,
             "/share/projdir",
-            "/net/aserv/export/ASERV01",
-            "/net/aserv/export/ASERV00",
-            "/net/vstor/export/vstor1",
+            "/share/aserv01.*",
+            "/share/aserv00.*",
+            "/net/vstor/export/vstor1.*",
             "/share/pdata.*"
             
         ]
@@ -502,61 +497,25 @@ def comparisonMenu():
             return
         elif option == 1:
             # Get starting base path
-            print("Enter base path")
-            base_path = input()
+            print("Enter regex")
+            regex = input()
         else:
-            base_path = values[option]
+            regex = values[option]
 
+        print("Running Aggregation")
         # Get all filepaths in src_listing
-        files_info = queries.getDocumentsFromBasePath(base_path, table_names["src_listing"], ["f", "l"])
-        arguments = []
-        print("Started creating arguments")
-        i = 0
-        insert_info = []
-        limit = 100000000
-        for result in files_info:
-            # Check if a filename is in TACC
-            filename = result["filename"]
-            insert_info.append({
-                "_id": result["_id"],
-                "filename": filename,
-                "filepath": result["filepath"],
-                "filetype": result["filetype"],
-            })
-            # If it is a link, include the broken flag and the points_to
-            if result["filetype"] == "l":
-                insert_info[-1]["broken?"] = result["broken?"]
-                insert_info[-1]["points_to"] = result["points_to"]
-            arguments.append((filename, table_names["dst_listing"], False))
-            i += 1
-            if i == limit:
-                break
-
-        print("Finished creating arguments")
-        print("Started submitting queries")
-        results = submitInParallel(queries.getAinBByFilename, arguments)
-        print("Finished submitting queries")
-
-        # innsert result into appropriate table using insertMany
-        inserts = []
-        for i,result in enumerate(results):
-            if result != [None]:
-                continue
-
-            inserts.append(insert_info[i])
-        
-        if len(inserts) == 0:
-            print("All files already in TACC")
+        documents_list = queries.getANotinBByFilenameFiltered(regex, table_names["src_listing"], table_names["dst_listing"], ["f", "l", "lf"])
+        if documents_list == []:
+            print(f"No results found for {regex}")
             return
-        # Get collection to insert into
-        db = general.connectToDB(database_name)
-        collection = db[table_names["src_not_in_dst"]]
-        # Remove all documents in collection
-        collection.drop()
-        
-        collection.insert_many(inserts)
-        print("Finished inserting into src_not_in_dst")
-            
+        else:
+            # Define collection to end up in
+            db = general.connectToDB(database_name)
+            o_collection = db[table_names["src_not_in_dst"]]
+            # Reset collection
+            o_collection.drop()
+            print("Inserting results")
+            o_collection.insert_many(documents_list)
 
 
     def compareTwoDirectories():
@@ -626,7 +585,7 @@ def comparisonMenu():
 
 def analysisMenu():
     
-    def analyzeByDirectoryLevel():
+    def analyzeByDirName():
         # Get which collection to analyze
         print("Which collection do you want to analyze?")
         options = [
@@ -639,52 +598,38 @@ def analysisMenu():
         else:
             collection_name = options[option]
         
-        print("How many levels in the path do you want the distinct?")
-        levels_num = int(input())
+        print("Do you want to output to file?")
+        options = [
+            "Yes",
+            "No"
+        ]
+        option = menus.get_option_main(options)
+        output_dir_path = ""
+        output_file_path = ""
+        if option == 0:
+            output_dir_path = input("Please enter the output dir path:\n")
+            filename = "parent_dirs_analysis.txt"
+            output_file_path = os.path.join(output_dir_path, filename)
+
 
         # Create db connection
-        db = general.connectToDB(database_name)
-        collection = db[collection_name]
-        aggregation = [
-            {
-                '$addFields': {
-                    'split_path': {
-                        '$split': [
-                            '$filepath', '/'
-                        ]
-                    }
-                }
-            }, {
-                '$addFields': {
-                    'sliced_string': {
-                        '$slice': [
-                            '$split_path', 0, levels_num
-                        ]
-                    }
-                }
-            }, {
-                '$group': {
-                    '_id': 'sliced_string', 
-                    'distinctValues': {
-                        '$addToSet': '$sliced_string'
-                    }
-                }
-            }
-        ]
-
-        results = collection.aggregate(aggregation)
+        
+        results = queries.getDistinctValues(collection_name, "dir_name")
         for result in results:
-            for value in result["distinctValues"]:
-                print("/".join(value))
+            if output_file_path != "":
+                with open(output_file_path, "a") as f:
+                    f.write(result["dir_name"] + "\n")
+            else:
+                print(result["dir_name"])
         
     print("Select which analysis to perform")
     options = [
         "Return to main menu",
-        "Analyze by Directory Level"
+        "Analyze by Parent Directory"
     ]
     functions = [
         None,
-        analyzeByDirectoryLevel
+        analyzeByDirName
     ]
     option = menus.get_option_main(options)
     if option == 0:
