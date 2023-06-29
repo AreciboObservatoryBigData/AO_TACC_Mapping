@@ -94,7 +94,7 @@ def main():
             "Apply Filter",
             "Make Mapping",
             "Insert Missing Listing Dirs",
-            "Search Keywords",
+            "Search Regex",
             "Comparisons",
             "Analysis",
             "Remove Listing Entries",
@@ -115,7 +115,7 @@ def main():
             apply_filter,
             make_mapping,
             insertMissingListingDirs,
-            searchKeywords,
+            searchRegex,
             comparisonMenu, 
             analysisMenu,
             deleteListingEntries,
@@ -388,7 +388,8 @@ def resetSpecificCollection():
     collection.drop()
     print(f"Finished {collection_name}") 
 
-def searchKeywords():
+def searchRegex():
+    case_sensitive = True
     print("Please select a collection to search")
 
     options = [
@@ -403,19 +404,24 @@ def searchKeywords():
     ]
     option = menus.get_option_main(options)
     collection_name = options[option]
-    keyword = input("Enter keyword to search for:\n")
+    regex = input("Enter regex to search for:\n")
     done = False
+    output_dir_path = ""
     while not done:
         print("Menu:")
         options = [
             "Exit",
-            "Set collection",
-            "Set keyword",
-            "Seach all keyword matches",
-            "Search Top 20 keyword matches",
-            "Search distinct directories of keyword matches",
-            "Search all keyword matches and export to file",
-            "Search keywords by list and export to file"
+            "Set collection from: " + str(collection_name),
+            "Set regex from: " + str(regex),
+            "Set output_dir from: " + str(output_dir_path),
+            "Switch case sensitivity from: " + str(case_sensitive),
+            "Seach all regex matches",
+            "Search Top 20 regex matches",
+            "Search distinct parent directories of regex matches",
+            "Search distinct directories of regex matches",
+            "Search all regex matches and export to file",
+            "Search distinct parent directories of regex matches and export to file",
+            "Search regex by list and export to file"
         ]
         option = menus.get_option_main(options)
         if option == 0:
@@ -423,47 +429,71 @@ def searchKeywords():
         elif option == 1:
             collection_name = input("Enter collection name:\n")
         elif option == 2:
-            keyword = input("Enter keyword to search for:\n")
+            regex = input("Enter regex to search for:\n")
         elif option == 3:
-            results = queries.getKeywordMatches(collection_name, keyword, limit = 9999999)
-            for result in results:
-                print(result["filepath"])
+            output_dir_path = input("Enter output directory:\n")
         elif option == 4:
-            results = queries.getKeywordMatches(collection_name, keyword)
+            case_sensitive = not case_sensitive
+        elif option == 5:
+            results = queries.getRegexMatches(collection_name, regex, case_sensitive, limit = 9999999)
             for result in results:
                 print(result["filepath"])
-        elif option == 5:
+        elif option == 6:
+            results = queries.getRegexMatches(collection_name, regex, case_sensitive, limit = 20)
+            for result in results:
+                print(result["filepath"])
+        elif option == 7:
+            # Get distinct dir_names from regex matches
+            results = queries.getDistinctDirNameByRegex(collection_name, regex, case_sensitive)
+            for result in results:
+                print(result)
+        elif option == 8:
             levels_num = input("Enter number of levels to search:\n")
             levels_num = int(levels_num)
-            match_stage = {"filepath": {"$regex": ".*" + keyword + ".*"}}
-            restuls = queries.getAnalysisByDistinctDirectories(collection_name, levels_num, match_stage)
+            if case_sensitive:
+                match_stage = {"filepath": {"$regex": regex}}
+            else:
+                match_stage = {"filepath": {"$regex": regex, "$options": "i"}}
+            results = queries.getAnalysisByDistinctDirectories(collection_name, levels_num, match_stage)
             for result in results:
                 for value in result["distinctValues"]:
                     print("/".join(value))
-        elif option == 6:
-            output_dir_path = input("Enter output dir path:\n")
-            print("Searching all keyword matches")
-            results = queries.getKeywordMatches(collection_name, keyword, limit = 9999999)
-            output_file_path = os.path.join(output_dir_path, f"{collection_name}_{keyword}.txt")
+        elif option == 9:
+            
+            print("Searching all regex matches")
+            results = queries.getRegexMatches(collection_name, regex, case_sensitive, limit = 9999999)
+            output_file_path = os.path.join(output_dir_path, f"{collection_name}_{regex}.txt")
             print(f"Writing to {output_file_path}")
             with open(output_file_path, "w") as f:
                 for result in results:
                     f.write(result["filepath"] + "\n")
-        elif option == 7:
+        elif option == 10:
+            
+            print("Searching distinct parent directories of regex matches")
+            # Get distinct dir_names from regex matches
+            results = queries.getDistinctDirNameByRegex(collection_name, regex, case_sensitive)
+            output_file_path = os.path.join(output_dir_path, f"{collection_name}_{regex}.txt")
+            print(f"Writing to {output_file_path}")
+            with open(output_file_path, "w") as f:
+                for result in results:
+                    f.write(result + "\n")
+        elif option == 11:
+            prev_regex = regex
             input_file_path = input("Enter input file path:\n")
-            output_dir_path = input("Enter output dir path:\n")
-            print("Searching keywords by list")
+            
+            print("Searching regex by list")
             with open(input_file_path, "r") as f:
-                keywords = f.readlines()
-            keywords = [keyword.strip() for keyword in keywords]
-            for i,keyword in enumerate(keywords):
-                print(f"Searching for {keyword}")
-                results = queries.getKeywordMatches(collection_name, keyword, limit = 9999999)
-                output_file_path = os.path.join(output_dir_path, f"{str(i+1)}_{collection_name}_{keyword}.txt")
+                regex_list = f.readlines()
+            regex_list = [regex.strip() for regex in regex_list]
+            for i,regex in enumerate(regex_list):
+                print(f"Searching for {regex}")
+                results = queries.getRegexMatches(collection_name, regex, case_sensitive, limit = 9999999)
+                output_file_path = os.path.join(output_dir_path, f"{str(i+1)}_{collection_name}_{regex}.txt")
                 print(f"Writing to {output_file_path}")
                 with open(output_file_path, "w") as f:
                     for result in results:
                         f.write(result["filepath"] + "\n")
+            regex = prev_regex
 
 
 

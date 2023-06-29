@@ -201,11 +201,14 @@ def getAinBByFilename(filename, listing_collection_name, return_all = True, file
         documents = [documents]
     return documents
 
-def getKeywordMatches(collection_name, keyword, limit = 20):
+def getRegexMatches(collection_name, regex, case_sensitive = False, limit = 20):
     # connect to database
     db = general.connectToDB(global_vars.db_name)
     collection = db[collection_name]
-    find_dict = {"filepath": {"$regex": f".*{keyword}.*"}}
+    if case_sensitive:
+        find_dict = {"filepath": {"$regex": regex}}
+    else:
+        find_dict = {"filepath": {"$regex": regex, "$options": "i"}}
     # Get all documents where filepath starts with base_path
     documents = collection.find(find_dict).limit(limit)
     return documents
@@ -247,3 +250,32 @@ def getAnalysisByDistinctDirectories(collection_name, levels_num, match_stage = 
 
     results = collection.aggregate(aggregation)
     return results
+
+def getDistinctDirNameByRegex(collection_name, regex, case_sensitive = False):
+
+    # connect to database
+    db = general.connectToDB(global_vars.db_name)
+    collection = db[collection_name]
+    if case_sensitive:
+        find_dict = {"filepath": {"$regex": regex}}
+    else:
+        find_dict = {"filepath": {"$regex": regex, "$options": "i"}}
+    # Get all documents where filepath starts with base_path
+    aggregation = [
+        {
+            "$match": find_dict
+        },
+        {
+            "$group":{
+                "_id": "$dir_name"
+            }
+        }
+    ]
+    results = collection.aggregate(aggregation)
+    dir_names = []
+    for result in results:
+        dir_names.append(result["_id"])
+    return dir_names
+
+
+

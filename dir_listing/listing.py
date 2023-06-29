@@ -216,7 +216,10 @@ def getLine(filepath):
         # if os.path.
         # If points_to is a relative path, make it absolute
         if dict_line["points_to"][0] != "/":
-            dict_line["points_to"] = os.path.join(os.path.dirname(filepath), dict_line["points_to"])
+            dir_name = os.path.dirname(filepath)
+
+            dict_line["points_to"] = relToAbs(dir_name, dict_line["points_to"])
+
         # Here the link points_to is in absolute path form
         if os.path.isfile(dict_line["points_to"]):
             dict_line["filetype"] = "lf"
@@ -315,6 +318,19 @@ def check_link(link_path):
     else:
         return 1
 
+def relToAbs(dir_name, rel_path):
+    split_rel_path = rel_path.split("/")
+    split_dir_name = dir_name.split("/")
+
+    for i, rel in enumerate(split_rel_path):
+        if rel == "..":
+            split_dir_name.pop()
+        elif rel == ".":
+            continue
+        else:
+            split_dir_name.append(rel)
+    abs_path = "/".join(split_dir_name)
+    return abs_path
 
 
 
