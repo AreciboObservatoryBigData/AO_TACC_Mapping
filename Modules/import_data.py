@@ -32,6 +32,7 @@ def run(files_db_info, db_name, listing_paths_collection_name):
             memory_stats = psutil.virtual_memory()
             submissions = []
             i = 0
+            running_procs = []
             for line in open(file, "r"):
                 if line[-1] == "\n":
                     line = line[:-1]
@@ -59,9 +60,18 @@ def run(files_db_info, db_name, listing_paths_collection_name):
 
                 if memory_stats.percent > 95:
                     print("Memory usage is too high")
+                    for proc in running_procs:
+                            proc.get()
+                    pool.close()
+                    pool = mp.Pool(processes=mp.cpu_count()*5)
+                    running_procs = []
+                    
+
+
                     # Waiting for memory to be below 80%
                     while memory_stats.percent > 90:
                         print(memory_stats.percent)
+                        
                         time.sleep(5)
                         memory_stats = psutil.virtual_memory()
                     print("Memory usage is now below 80%")
@@ -74,7 +84,7 @@ def run(files_db_info, db_name, listing_paths_collection_name):
                     if serial:
                         submitInserts(submissions,db_name,collection_name)
                     else:
-                        pool.apply_async(submitInserts, args=(submissions,db_name,collection_name))
+                        running_procs.append(pool.apply_async(submitInserts, args=(submissions,db_name,collection_name)))
                     submissions = []
                     print(i)
                 

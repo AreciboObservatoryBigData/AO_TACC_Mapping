@@ -88,6 +88,7 @@ def main():
             "Quit",
             "Change Current Working DB",
             "Reset DB",
+            "Reset Collection",
             "Import New Data",
             "Insert File Dir Relations",
             "Resolve links to ID",
@@ -109,6 +110,7 @@ def main():
             quit,
             changeDB,
             runResets,
+            resetCollection,
             importNewData,
             insertFileDir,
             resolveLinksToID,
@@ -166,6 +168,29 @@ def runResets():
                 collection.create_index(index)
             else:
                 collection.create_index(index[0], **index[1])
+
+def resetCollection():
+    # Choose collection to reset
+    print("Choose collection to reset: ")
+    options = list(table_names.values())
+    option = menus.get_option_main(options)
+    collection_name = options[option]
+    # connect to mongoDB, drop collection
+    # connect to DB
+    db = general.connectToDB(database_name)
+    print(f"Dropping collection {collection_name}")
+    # drop collection
+    db[collection_name].drop()
+
+    # Re-establish index
+    if collection_name in indexes.keys():
+        collection = db[collection_name]
+        for index in indexes[collection_name]:
+            if type(index) == str:
+                collection.create_index(index)
+            else:
+                collection.create_index(index[0], **index[1])
+
 
 
 
@@ -421,7 +446,8 @@ def searchRegex():
             "Search distinct directories of regex matches",
             "Search all regex matches and export to file",
             "Search distinct parent directories of regex matches and export to file",
-            "Search regex by list and export to file"
+            "Search regex by list and export to file",
+            "Search distinct parent directories by regex list and export to file"
         ]
         option = menus.get_option_main(options)
         if option == 0:
@@ -472,7 +498,7 @@ def searchRegex():
             print("Searching distinct parent directories of regex matches")
             # Get distinct dir_names from regex matches
             results = queries.getDistinctDirNameByRegex(collection_name, regex, case_sensitive)
-            output_file_path = os.path.join(output_dir_path, f"{collection_name}_{regex}.txt")
+            output_file_path = os.path.join(output_dir_path, f"parent_{collection_name}_{regex}.txt")
             print(f"Writing to {output_file_path}")
             with open(output_file_path, "w") as f:
                 for result in results:
@@ -493,6 +519,24 @@ def searchRegex():
                 with open(output_file_path, "w") as f:
                     for result in results:
                         f.write(result["filepath"] + "\n")
+            regex = prev_regex
+        elif option == 12:
+            prev_regex = regex
+            input_file_path = input("Enter input file path:\n")
+            
+            print("Searching regex by list")
+            with open(input_file_path, "r") as f:
+                regex_list = f.readlines()
+            regex_list = [regex.strip() for regex in regex_list]
+            for i,regex in enumerate(regex_list):
+                print(f"Searching distinct parent directories of {regex}")
+                # Get distinct dir_names from regex matches
+                results = queries.getDistinctDirNameByRegex(collection_name, regex, case_sensitive)
+                output_file_path = os.path.join(output_dir_path, f"{i+1}_parent_{collection_name}_{regex}.txt")
+                print(f"Writing to {output_file_path}")
+                with open(output_file_path, "w") as f:
+                    for result in results:
+                        f.write(result + "\n")
             regex = prev_regex
 
 

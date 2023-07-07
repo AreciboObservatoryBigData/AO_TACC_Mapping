@@ -1,5 +1,6 @@
 def run(database_name):
     global db
+    global black_redo
     from pymongo import MongoClient
     from Modules import general
     import pandas as pd, numpy as np, multiprocessing as mp
@@ -7,7 +8,8 @@ def run(database_name):
 
     #Use Multiprocessing
     use_mp = True
-    black_redo = True
+    black_redo = False
+    
     mp_processes = 50
 
     #paths
@@ -22,6 +24,7 @@ def run(database_name):
     whitelist_name = "src_whitelist_filtered"
     blacklist_name = "src_final_filtered"
     rejected_name = "blacklist_rejects"
+    connection_to_filters = db[filters_collection_name]
     connection_to_whitelist = db["src_whitelist_filtered"]
     connection_to_blacklist = db["src_final_filtered"]
     connection_to_rejected = db["blacklist_rejects"]
@@ -45,23 +48,27 @@ def run(database_name):
     black_c = bw[bw[column_to_split] == 'b']
 
     def main():
+        global black_redo
         exit = False
         while exit != True:
             print("0.Exit program?")
-            print("1.Import Filters csv to MongoDB?")
-            print("2.Run only whitelist?")
-            print("3.Run only Blacklist?")
-            print("4.Run Whitelist & Blacklist?")
+            print("1.Delete filters from MongoDB?")
+            print("2. Reset Blacklist: " + str(black_redo))
+            print("3.Run only whitelist?")
+            print("4.Run only Blacklist?")
+            print("5.Run Whitelist & Blacklist?")
             menu = input("Select which part of the program to execute: ")
             if menu =="0" or menu == "q":
                     exit = True
             if menu =="1":
-                importFilters()
+                connection_to_filters.drop()
             if menu =="2":
-                apply_filters("w")
+                black_redo = not black_redo
             if menu =="3":
-                apply_filters("b")
+                apply_filters("w")
             if menu =="4":
+                apply_filters("b")
+            if menu =="5":
                 apply_filters("w")
                 print("finished whitelist")
                 apply_filters("b")
@@ -69,8 +76,7 @@ def run(database_name):
             print("Finished running the program\n")
 
     def importFilters():
-        collection=db[filters_collection_name]
-        collection.drop()
+        connection_to_filters.drop()
         for file in file_list:
             command=f"mongoimport --host localhost --port 27017 --db {database_name} --collection {filters_collection_name} --type csv --file {file} --headerline"
             os.system(command)
@@ -112,6 +118,9 @@ def run(database_name):
                 print("Finished the copy for the blacklist")
 
         for criteria in filter_series:
+            if connection_to_filters.find_one({"path": criteria}):
+                continue
+
             rule = criteria
             use_agregation = False
             if criteria [-1] =="/":
@@ -124,6 +133,7 @@ def run(database_name):
                     ]}
             elif "*" in criteria :
                 dir_name = os.path.dirname(criteria)
+                pattern = criteria.replace(".", "\.")
                 pattern = criteria.replace("*", ".*")
                 query = [
                         {
@@ -132,7 +142,8 @@ def run(database_name):
                                 '$or': [
                                     {'filetype': 'f'},
                                     {'filetype': 'l'},
-                                    {'filetype': 'lf'}
+                                    {'filetype': 'lf'},
+                                    {'filetype': 'll'}
                                 ]
                             }
                         }, {
@@ -144,9 +155,15 @@ def run(database_name):
                 query = {
                     'filepath': criteria
                 }
-            
+            document = {
+                'path': rule,
+                'filter_type': filter_type,
+            }
+            connection_to_filters.insert_one(document)
+
             if use_mp == True:
                 if filter_type == "w":
+                    print(rule)
                     createFiltered(src_name,query,whitelist_name,"w",use_agregation,rule)
                 elif filter_type == "b":
                     print(query)
@@ -161,15 +178,27 @@ def run(database_name):
 
             elif use_mp == False:
                 if filter_type == "w":
+                    print(rule)
                     createFiltered(src_name,query,whitelist_name,"w",use_agregation,rule)
                 elif filter_type == "b":
                     print(query)
                     createFiltered(whitelist_name,query,rejected_name,"w",use_agregation,rule)
                     createFiltered(whitelist_name,query,blacklist_name,"b",use_agregation,rule)
+        if use_mp == True and filter_type == "b" and len(arg_list) != 0:
+            pool = mp.Pool(processes=len(arg_list))
+            pool.starmap(createFiltered, arg_list)
+            arg_list=[]
+            pool.close()
 
+
+
+
+
+            
 
 
     main()
+
 
 def createFiltered(source_collection,query,destination_collection,filter_type,use_agregation,rule):    
         batch=[]
@@ -182,7 +211,7 @@ def createFiltered(source_collection,query,destination_collection,filter_type,us
 
         if filter_type == "w":
             i=0
-            
+
             for each in results:
                 each["filter_applied"] = rule
                 batch.append(each)
@@ -195,6 +224,10 @@ def createFiltered(source_collection,query,destination_collection,filter_type,us
                 new_coll.insert_many(batch)
             else:
                 print(f"Last batch empty: {i} insert: {rule}")
+            
+            new_coll.create_index('filename')
+            new_coll.create_index('dir_name')
+            new_coll.create_index('filepath')
         elif filter_type == "b":
             if use_agregation == True:
                 i=0
@@ -211,3 +244,7 @@ def createFiltered(source_collection,query,destination_collection,filter_type,us
                     print(f"Last batch empty: {i} delete: {rule}")         
             else:
                 new_coll.delete_many(query)
+            
+            new_coll.create_index('filename')
+            new_coll.create_index('dir_name')
+            new_coll.create_index('filepath')
