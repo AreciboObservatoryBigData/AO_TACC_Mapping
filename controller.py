@@ -553,7 +553,8 @@ def comparisonMenu():
             "/share/aserv01",
             "/share/aserv00",
             "/net/vstor/export/vstor1",
-            "/share/pdata*"
+            "/share/pdata*",
+            "/share/tstor0"
         ]
 
         values = [
@@ -563,7 +564,8 @@ def comparisonMenu():
             "/share/aserv01.*",
             "/share/aserv00.*",
             "/net/vstor/export/vstor1.*",
-            "/share/pdata.*"
+            "/share/pdata.*",
+            "/share/tstor0.*"
             
         ]
         option = menus.get_option_main(options)

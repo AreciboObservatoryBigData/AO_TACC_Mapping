@@ -1,15 +1,18 @@
+from pymongo import MongoClient
+from Modules import general
+import pandas as pd, numpy as np, multiprocessing as mp
+import glob, os, time
+from Modules import global_vars
+
+
+
 def run(database_name):
     global db
     global black_redo
-    from pymongo import MongoClient
-    from Modules import general
-    import pandas as pd, numpy as np, multiprocessing as mp
-    import glob, os
 
     #Use Multiprocessing
     use_mp = True
     black_redo = False
-    
     mp_processes = 50
 
     #paths
@@ -75,176 +78,235 @@ def run(database_name):
 
             print("Finished running the program\n")
 
-    def importFilters():
-        connection_to_filters.drop()
-        for file in file_list:
-            command=f"mongoimport --host localhost --port 27017 --db {database_name} --collection {filters_collection_name} --type csv --file {file} --headerline"
-            os.system(command)
-
-    
+    def resetCollections(collection):
+        collection.drop()
+        collection.create_index('filename')
+        collection.create_index('dir_name')
+        collection.create_index('filepath')
 
     def apply_filters(filter_type):
-        arg_list=[]
+        
         if filter_type == "w":
+            print("Running whitelist")
             # Use whitelisting Series
             filter_series = white_c['path']
             # Drop the relevant collections
-            connection_to_whitelist.drop()
+            resetCollections(connection_to_whitelist)
+
+
+            
+            or_list = []
+            for criteria in filter_series:
+                if connection_to_filters.find_one({"path": criteria}):
+                    continue
+                
+                
+                # Get query
+                query = ruleToAggregation(criteria)
+                # Create a single aggregation with ors out of each of the match stages
+                or_list.append(query[0]["$match"])
+            # Make aggregation with the out stage
+            startTime= time.time()
+            aggregation = [
+                {
+                    "$match":{
+                        "$or": or_list
+                    }
+                },{
+                    "$out": whitelist_name
+                }
+            ]
+
+            collection = db[src_name]
+            collection.aggregate(aggregation)
+            endTime=time.time()
+            print(f"Time taken for applying whitelist: {endTime-startTime}")                     
+
+            for criteria in filter_series:
+                if connection_to_filters.find_one({"path": criteria}):
+                    continue
+                
+                document = {
+                    'path': criteria,
+                    'filter_type': filter_type,
+                }
+                connection_to_filters.insert_one(document)
 
         elif filter_type == "b":
+            print("Running blacklist")
+            start_time = time.time()
             # Use whitelisting Series
             filter_series = black_c['path']
             # Drop the relevant collections
             if black_redo == True:
-                connection_to_blacklist.drop()
-                connection_to_rejected.drop()
-            #make the collection that the blacklist filter will delete from
-            batch=[]
-            i=0
-            if black_redo == True :
+                resetCollections(connection_to_blacklist)
+                resetCollections(connection_to_rejected)
                 print("Started the copy for the blacklist")
-                copy = connection_to_whitelist.find()
-                for each in copy:
-                    batch.append(each)
-                    i=i+1
-                    if i % 500000 ==0:
-                        print(i)
-                        connection_to_blacklist.insert_many(batch)
-                        batch=[]  
-                if batch != []:
-                    connection_to_blacklist.insert_many(batch)
-                else:
-                    print(f"Last batch empty: {i}")
+                pipeline = [{ "$out": blacklist_name }]
+                connection_to_whitelist.aggregate(pipeline)
                 print("Finished the copy for the blacklist")
-
-        for criteria in filter_series:
-            if connection_to_filters.find_one({"path": criteria}):
-                continue
-
-            rule = criteria
-            use_agregation = False
-            if criteria [-1] =="/":
-                folder_match = criteria[:-1]
-                criteria = f"{criteria}.*"
-
-                query = {'$or': [
-                    {'filepath': folder_match},
-                    {'filepath': {'$regex': criteria}}
-                    ]}
-            elif "*" in criteria :
-                dir_name = os.path.dirname(criteria)
-                pattern = criteria.replace(".", "\.")
-                pattern = criteria.replace("*", ".*")
-                query = [
-                        {
-                            '$match': {
-                                'dir_name': dir_name, 
-                                '$or': [
-                                    {'filetype': 'f'},
-                                    {'filetype': 'l'},
-                                    {'filetype': 'lf'},
-                                    {'filetype': 'll'}
-                                ]
-                            }
-                        }, {
-                            '$match': {'filepath': {'$regex': pattern}}
-                        }
-                    ]            
-                use_agregation = True
-            else:
-                query = {
-                    'filepath': criteria
-                }
-            document = {
-                'path': rule,
-                'filter_type': filter_type,
-            }
-            connection_to_filters.insert_one(document)
-
+            # blacklist would be deleting from the blacklist collection and adding to the rejected collection
+            args_list = []
+            for criteria in filter_series:
+                if connection_to_filters.find_one({"path": criteria}):
+                    continue
+                
+                
+                # Get query
+                aggregation = ruleToAggregation(criteria)
+                # Create a single aggregation with ors out of each of the match stages
+                args_list.append((aggregation, blacklist_name))
+            print("Finished creating the args list")
             if use_mp == True:
-                if filter_type == "w":
-                    print(rule)
-                    createFiltered(src_name,query,whitelist_name,"w",use_agregation,rule)
-                elif filter_type == "b":
-                    print(query)
-                    arg_list.append((whitelist_name,query,rejected_name,"w",use_agregation,rule))
-                    arg_list.append((whitelist_name,query,blacklist_name,"b",use_agregation,rule))
+                with mp.Pool(processes=mp_processes) as pool:
+                    pool.starmap(deleteFromAggregation, args_list)
+            else:
+                for i,args in enumerate(args_list):
+                    print(i)
+                    deleteFromAggregation(*args)
+            # Get the difference between the whitelist and blacklist and output it to the rejected collection
+            # We would be getting all in whitelist not in blacklist
+            aggregation = [
+                {
+                    "$lookup":{
+                        "from": blacklist_name,
+                        "localField": "_id",
+                        "foreignField": "_id",
+                        "as": "results"
+                    }
+                },{
+                    "$match":{
+                        "results": []
+                    }
+                },{
+                    "$project":{
+                        "results": 0
+                    }
+                },{
+                    "$out": rejected_name
+                }
+            ]
+            whitelist_collection = db[whitelist_name]
+            whitelist_collection.aggregate(aggregation)
+
+            # Add the applied filters to the filters collection
+            for criteria in filter_series:
+                if connection_to_filters.find_one({"path": criteria}):
+                    continue
+
+                document = {
+                    'path': criteria,
+                    'filter_type': filter_type,
+                }
+                connection_to_filters.insert_one(document)
+
+
+            print(f"Time taken for applying blacklist: {time.time()-start_time}")
             
-                if len(arg_list) >= mp_processes:
-                    pool = mp.Pool(processes=len(arg_list))
-                    pool.starmap(createFiltered, arg_list)
-                    arg_list=[]
-                    pool.close()
-
-            elif use_mp == False:
-                if filter_type == "w":
-                    print(rule)
-                    createFiltered(src_name,query,whitelist_name,"w",use_agregation,rule)
-                elif filter_type == "b":
-                    print(query)
-                    createFiltered(whitelist_name,query,rejected_name,"w",use_agregation,rule)
-                    createFiltered(whitelist_name,query,blacklist_name,"b",use_agregation,rule)
-        if use_mp == True and filter_type == "b" and len(arg_list) != 0:
-            pool = mp.Pool(processes=len(arg_list))
-            pool.starmap(createFiltered, arg_list)
-            arg_list=[]
-            pool.close()
 
 
+        # _id_list=[]
 
+        # for criteria in filter_series:
+        #     if connection_to_filters.find_one({"path": criteria}):
+        #         continue
+            
+            
+        #     # Get query
+        #     query = ruleToAggregation(criteria)
+            
+            
 
+        #     document = {
+        #         'path': criteria,
+        #         'filter_type': filter_type,
+        #     }
+        #     connection_to_filters.insert_one(document)
 
             
 
+            # if use_mp == True:
+            #     if filter_type == "w":
+            #         print(rule)
+            #         createFiltered(src_name,query,whitelist_name,"w",use_agregation,rule,_id_list,iterations_left)
+            #     elif filter_type == "b":
+            #         print(query)
+            #         arg_list.append((whitelist_name,query,rejected_name,"w",use_agregation,rule,_id_list,iterations_left))
+            #         arg_list.append((whitelist_name,query,blacklist_name,"b",use_agregation,rule))
+            
+            #     if len(arg_list) >= mp_processes:
+            #         pool = mp.Pool(processes=len(arg_list))
+            #         pool.starmap(createFiltered, arg_list)
+            #         arg_list=[]
+            #         pool.close()
+
+            # elif use_mp == False:
+            #     if filter_type == "w":
+            #         print(rule)
+            #         createFiltered(src_name,query,whitelist_name,"w",use_agregation,rule,_id_list,iterations_left)
+            #     elif filter_type == "b":
+            #         print(query)
+            #         createFiltered(whitelist_name,query,rejected_name,"w",use_agregation,rule,_id_list,iterations_left)
+            #         createFiltered(whitelist_name,query,blacklist_name,"b",use_agregation,rule)
+        # if use_mp == True and filter_type == "b" and len(arg_list) != 0:
+        #     pool = mp.Pool(processes=len(arg_list))
+        #     pool.starmap(createFiltered, arg_list)
+        #     arg_list=[]
+        #     pool.close()
 
     main()
 
+def ruleToAggregation(criteria):
+    
+    if criteria [-1] =="/":
+        folder_match = criteria[:-1]
+        criteria = f"{criteria}.*"
 
-def createFiltered(source_collection,query,destination_collection,filter_type,use_agregation,rule):    
-        batch=[]
-        collection = db[source_collection]
-        new_coll = db[destination_collection]
-        if use_agregation == True:
-            results = collection.aggregate(query)
-        elif use_agregation == False and not filter_type == "b":
-            results = collection.find(query)
+        query = [
+                {'$match': {'$or': [
+                            {'filepath': folder_match}, 
+                            {'filepath': {'$regex': criteria}}
+                        ]}}                        
+            ]
+    elif "*" in criteria :
+        dir_name = os.path.dirname(criteria)
+        pattern = criteria.replace(".", "\.")
+        pattern = criteria.replace("*", ".*")
+        query = [
+                {'$match': {'dir_name': dir_name, 
+                        '$or': [
+                            {'filetype': 'f'},
+                            {'filetype': 'l'},
+                            {'filetype': 'lf'},
+                            {'filetype': 'll'}
+                        ],
+                        'filepath': {'$regex': pattern}
+                        }}
+            ]            
+    else:
+        query = [{'$match': {'filepath': criteria}}]
+    return query
 
-        if filter_type == "w":
-            i=0
 
-            for each in results:
-                each["filter_applied"] = rule
-                batch.append(each)
-                i=i+1
-                if i % 500000 ==0:
-                    print(i)
-                    new_coll.insert_many(batch)
-                    batch=[]  
-            if batch != []:
-                new_coll.insert_many(batch)
-            else:
-                print(f"Last batch empty: {i} insert: {rule}")
-            
-            new_coll.create_index('filename')
-            new_coll.create_index('dir_name')
-            new_coll.create_index('filepath')
-        elif filter_type == "b":
-            if use_agregation == True:
-                i=0
-                for result in results:
-                    batch.append(result['_id'])
-                    i=i+1
-                    if i % 500000 ==0:
-                        print(i)
-                        new_coll.delete_many({"_id" : {"$in": batch}})
-                        batch=[]  
-                if batch != []:
-                    new_coll.delete_many({"_id" : {"$in": batch}})
-                else:
-                    print(f"Last batch empty: {i} delete: {rule}")         
-            else:
-                new_coll.delete_many(query)
-            
-            new_coll.create_index('filename')
-            new_coll.create_index('dir_name')
-            new_coll.create_index('filepath')
+def deleteFromAggregation(aggregation, collection_name):
+    database_name = global_vars.db_name
+    # connection
+    db=general.connectToDB(database_name)
+    collection = db[collection_name]
+    aggregation = aggregation + [
+        {
+            "$project": {
+                "_id": 1
+            }
+        }
+    ]
+    results = collection.aggregate(aggregation)
+    # Delete by batches
+    batch = []
+    for result in results:
+        batch.append(result["_id"])
+        if len(batch) == 500000:
+            collection.delete_many({"_id": {"$in": batch}})
+            batch = []
+    if batch != []:
+        collection.delete_many({"_id": {"$in": batch}})
