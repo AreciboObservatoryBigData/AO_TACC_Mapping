@@ -116,22 +116,26 @@ def main():
                 print("Submitting " + str(len(tasks)) + " tasks")
                 # for task in tasks:
                 #     print(task)
-                results = pool.map(getLine, tasks)
+                try:
+                    results = pool.map(getLine, tasks)
+                except:
+                    import pdb; pdb.set_trace()
                 finished_dirs.extend(tasks)
                 tasks = []
 
                 for result in results:
                     filepath, filetype, line = result
-                    # get broken? index from header
-                    broken_index = header.index("points_to")
-                    # Break line by separator and get broken?
-                    points_to = line.split(separator)[broken_index]
+                    
                     
                         
 
                     if line == "":
                         continue
                     output_file.write(line + "\n")
+                    # get broken? index from header
+                    broken_index = header.index("points_to")
+                    # Break line by separator and get broken?
+                    points_to = line.split(separator)[broken_index]
 
 
                     if (filetype == "d" or filetype == "ld") and points_to not in finished_dirs:
@@ -327,8 +331,8 @@ def loopCheck(filepath, points_to, scanned_ld_paths, scanned_ld_points_to):
 def check_link(link_path):
     
     command = "test -e '" + link_path + "'"
-    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if result.returncode == 0:
+    result = subprocess.call(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result == 0:
         return 0
     else:
         return 1
