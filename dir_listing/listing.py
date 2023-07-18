@@ -77,6 +77,7 @@ def main():
         # if it is, then it is a looping link
         scanned_ld_paths = []
         scanned_ld_points_to = []
+        finished_dirs = []
         while len(tasks) > 0:
             
             # TO run in serial:
@@ -116,15 +117,24 @@ def main():
                 # for task in tasks:
                 #     print(task)
                 results = pool.map(getLine, tasks)
+                finished_dirs.extend(tasks)
                 tasks = []
+
                 for result in results:
                     filepath, filetype, line = result
+                    # get broken? index from header
+                    broken_index = header.index("points_to")
+                    # Break line by separator and get broken?
+                    points_to = line.split(separator)[broken_index]
+                    
+                        
+
                     if line == "":
                         continue
                     output_file.write(line + "\n")
 
 
-                    if filetype == "d" or filetype == "ld":
+                    if (filetype == "d" or filetype == "ld") and points_to not in finished_dirs:
                         loop_bool = False
                         if filetype == "ld":
                             
@@ -137,10 +147,15 @@ def main():
                             # print(f"points_to:\n{scanned_ld_points_to}")
                             # print(f"filepath:\n{scanned_ld_paths}")
                             # breakpoint()
+                        
+                        # Add to tasks if not a loop and if, when the filetype is ld, the broken? is not broken
                         if not loop_bool:
-                            listing = os.listdir(filepath)
-                            listing = [os.path.join(filepath, item) for item in listing]
-                            tasks.extend(listing)
+                            try:
+                                listing = os.listdir(filepath)
+                                listing = [os.path.join(filepath, item) for item in listing]
+                                tasks.extend(listing)
+                            except:
+                                print("Error with: " + filepath)
 
                     if i % print_num == 0:
                         print("Completed " + str(i) + " tasks")

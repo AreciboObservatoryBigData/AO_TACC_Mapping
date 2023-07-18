@@ -157,6 +157,7 @@ def run(database_name):
                 # Create a single aggregation with ors out of each of the match stages
                 args_list.append((aggregation, blacklist_name))
             print("Finished creating the args list")
+            print("Deleting documents...")
             if use_mp == True:
                 with mp.Pool(processes=mp_processes) as pool:
                     pool.starmap(deleteFromAggregation, args_list)
@@ -205,60 +206,19 @@ def run(database_name):
             
 
 
-        # _id_list=[]
-
-        # for criteria in filter_series:
-        #     if connection_to_filters.find_one({"path": criteria}):
-        #         continue
-            
-            
-        #     # Get query
-        #     query = ruleToAggregation(criteria)
-            
-            
-
-        #     document = {
-        #         'path': criteria,
-        #         'filter_type': filter_type,
-        #     }
-        #     connection_to_filters.insert_one(document)
-
-            
-
-            # if use_mp == True:
-            #     if filter_type == "w":
-            #         print(rule)
-            #         createFiltered(src_name,query,whitelist_name,"w",use_agregation,rule,_id_list,iterations_left)
-            #     elif filter_type == "b":
-            #         print(query)
-            #         arg_list.append((whitelist_name,query,rejected_name,"w",use_agregation,rule,_id_list,iterations_left))
-            #         arg_list.append((whitelist_name,query,blacklist_name,"b",use_agregation,rule))
-            
-            #     if len(arg_list) >= mp_processes:
-            #         pool = mp.Pool(processes=len(arg_list))
-            #         pool.starmap(createFiltered, arg_list)
-            #         arg_list=[]
-            #         pool.close()
-
-            # elif use_mp == False:
-            #     if filter_type == "w":
-            #         print(rule)
-            #         createFiltered(src_name,query,whitelist_name,"w",use_agregation,rule,_id_list,iterations_left)
-            #     elif filter_type == "b":
-            #         print(query)
-            #         createFiltered(whitelist_name,query,rejected_name,"w",use_agregation,rule,_id_list,iterations_left)
-            #         createFiltered(whitelist_name,query,blacklist_name,"b",use_agregation,rule)
-        # if use_mp == True and filter_type == "b" and len(arg_list) != 0:
-        #     pool = mp.Pool(processes=len(arg_list))
-        #     pool.starmap(createFiltered, arg_list)
-        #     arg_list=[]
-        #     pool.close()
 
     main()
 
 def ruleToAggregation(criteria):
+    if criteria[0] != "/":
     
-    if criteria [-1] =="/":
+        query = [{
+                "$match": {
+                    "filepath": {"$regex": criteria}
+                }
+            }]
+    
+    elif criteria [-1] =="/":
         folder_match = criteria[:-1]
         criteria = f"{criteria}.*"
 

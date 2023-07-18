@@ -221,6 +221,32 @@ def importNewData():
     file_db_info.append([files, table_names["src_listing"]])
     import_data.run(file_db_info, database_name, table_names["listing_paths"])
 
+    # Add the parent directories of the files to listing_dirs
+    print("Adding parent directories to listing_collections")
+    
+    # Run aggregations in parallel
+    pool = mp.Pool(mp.cpu_count()*2)
+    args_list = [table_names["src_listing"], table_names["dst_listing"]]
+    pool.map(addParentDirToCollection, args_list)
+        
+
+def addParentDirToCollection(collection_name):
+    aggregation = [
+        {
+            '$set': {
+                'parent_dir': {
+                    '$last': {
+                        '$split': [
+                            '$dir_name', '/'
+                        ]
+                    }
+                }
+            }
+        },{"$out": collection_name}
+    ]
+    db = general.connectToDB(database_name)
+    collection = db[collection_name]
+    collection.aggregate(aggregation)
 
 def insertFileDirFromDir(listing_dir, listing_table_name, file_dir_table_name):
     # print(listing_dir)
@@ -580,7 +606,7 @@ def comparisonMenu():
 
         print("Running Aggregation")
         # Get all filepaths in src_listing
-        documents_list = queries.getANotinBByFilenameFiltered(regex, table_names["src_listing"], table_names["dst_listing"], ["f", "l", "lf"])
+        documents_list = queries.getANotinBByFilenameFiltered(regex, table_names["src_final_filtered"], table_names["dst_listing"], ["f", "l", "lf"])
         if documents_list == []:
             print(f"No results found for {regex}")
             return
@@ -645,7 +671,7 @@ def comparisonMenu():
     while True:
         options = [
             "Return to main menu",
-            "Find files in src whose filenames are found nowhere in dst",
+            "Find files in src_filtered whose filenames are found nowhere in dst",
             "Compare two directories directly"
         ]
         functions = [
