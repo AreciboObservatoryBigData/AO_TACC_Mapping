@@ -1,4 +1,11 @@
 dir_path
+/share/dtusr
+
+/home/phil/public_html
+
+/proj/radar
+
+
 /proj/r1498
 /proj/a1447
 /proj/r1719
@@ -496,7 +503,6 @@ dir_path
 /proj/p1876
 /proj/r2295
 /proj/p2456
-/proj/radar
 /proj/p1525
 /proj/a1634
 /proj/a4000

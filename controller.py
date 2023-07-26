@@ -12,7 +12,6 @@ import os
 import glob
 from Modules import queries
 from Modules import menus
-from Modules import make_blacklist
 from Modules import global_vars
 from Modules import general
 from Modules import import_data
@@ -70,8 +69,8 @@ table_names = {
 }
 
 indexes = {
-    table_names["src_listing"]: ["filepath", "filename", "points_to", "filetype"],
-    table_names["dst_listing"]: ["filepath", "filename", "points_to", "filetype"],
+    table_names["src_listing"]: ["filepath", "filename", "points_to", "filetype", "dir_name"],
+    table_names["dst_listing"]: ["filepath", "filename", "points_to", "filetype", "dir_name"],
     table_names["src_file_dir"]: ["dir_ID", "file_ID", [[("dir_ID", 1),("file_ID", 1)], {"unique": True}]],
     table_names["dst_file_dir"]: ["dir_ID", "file_ID", [[("dir_ID", 1),("file_ID", 1)], {"unique": True}]],
 
@@ -580,7 +579,8 @@ def comparisonMenu():
             "/share/aserv00",
             "/net/vstor/export/vstor1",
             "/share/pdata*",
-            "/share/tstor0"
+            "/share/tstor0",
+            "/proj/(!radar)*"
         ]
 
         values = [
@@ -591,7 +591,8 @@ def comparisonMenu():
             "/share/aserv00.*",
             "/net/vstor/export/vstor1.*",
             "/share/pdata.*",
-            "/share/tstor0.*"
+            "/share/tstor0.*",
+            "^/proj/(?!radar).*$"
             
         ]
         option = menus.get_option_main(options)
@@ -606,18 +607,8 @@ def comparisonMenu():
 
         print("Running Aggregation")
         # Get all filepaths in src_listing
-        documents_list = queries.getANotinBByFilenameFiltered(regex, table_names["src_final_filtered"], table_names["dst_listing"], ["f", "l", "lf"])
-        if documents_list == []:
-            print(f"No results found for {regex}")
-            return
-        else:
-            # Define collection to end up in
-            db = general.connectToDB(database_name)
-            o_collection = db[table_names["src_not_in_dst"]]
-            # Reset collection
-            o_collection.drop()
-            print("Inserting results")
-            o_collection.insert_many(documents_list)
+        queries.insertANotinBByFilenameFiltered(regex, table_names["src_listing"], table_names["dst_listing"], table_names["src_not_in_dst"])
+        
 
 
     def compareTwoDirectories():

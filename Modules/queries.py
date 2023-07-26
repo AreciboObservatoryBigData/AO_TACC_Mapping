@@ -113,7 +113,7 @@ def getAInBByFilepath(src_base_path, dst_base_path, src_name, dst_name, eq_value
     return src_in_dst
 
     
-def getANotinBByFilenameFiltered(regex, A_collection_name, B_collection_name, filetypes = ["f", "l", "lf"]):
+def insertANotinBByFilenameFiltered(regex, A_collection_name, B_collection_name, out_collection_name, filetypes = ["f", "l", "lf", "ll"]):
     
     # connect to database
     db = general.connectToDB(global_vars.db_name)
@@ -149,20 +149,31 @@ def getANotinBByFilenameFiltered(regex, A_collection_name, B_collection_name, fi
     },
     {
         "$match":{"lookupResult": {"$eq": []}}
-    }
+    }, {
+        '$project': {
+            '_id': 0, 
+            'lookupResult': 0
+        }
+    }, {
+        '$unwind': {
+            'path': '$group_results'
+        }
+    }, {
+        '$project': {
+            '_id': '$group_results._id', 
+            'filename': '$group_results.filename', 
+            'filepath': '$group_results.filepath', 
+            'filetype': '$group_results.filetype', 
+            'filesize': '$group_results.filesize', 
+            'dir_name': '$group_results.dir_name'
+        }
+    },{"$out": out_collection_name}
 
     ]
-    documents = collection.aggregate(aggregation)
-    documents_list = []
-    print("Creating paths document list")
-    i = 1
-    for document in documents:
-        documents_list.extend(document["group_results"])
-        i += 1    
-    print(f"Total results: {i}")
+
+    collection.aggregate(aggregation)
 
 
-    return documents_list
 
 def getDistinctValues(collection_name, field_name):
     db = general.connectToDB(global_vars.db_name)
